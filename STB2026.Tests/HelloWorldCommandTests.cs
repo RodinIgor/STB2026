@@ -1,221 +1,168 @@
 using Xunit;
 using System;
-using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Reflection;
-using System.Reflection.Metadata;
-using System.Reflection.PortableExecutable;
+using System.Runtime.InteropServices;
 
 namespace STB2026.Tests
 {
-    public class HelloWorldCommandTests
+    /// <summary>
+    /// Структурные тесты HelloWorldCommand и App.
+    /// Используют MetadataLoadContext для проверки без загрузки Revit API.
+    /// </summary>
+    public class HelloWorldCommandTests : IDisposable
     {
-        private static readonly string DllPath;
+        private readonly MetadataLoadContext _mlc;
+        private readonly Assembly _asm;
 
-        static HelloWorldCommandTests()
+        public HelloWorldCommandTests()
         {
-            var baseDir = AppDomain.CurrentDomain.BaseDirectory;
-            DllPath = Path.GetFullPath(Path.Combine(
-                baseDir, "..", "..", "..", "..",
-                "STB2026", "bin", "Debug", "net8.0-windows", "STB2026.dll"));
-        }
+            string testDir = Path.GetDirectoryName(typeof(HelloWorldCommandTests).Assembly.Location)!;
+            string mainDll = Path.Combine(testDir, "STB2026.dll");
 
-        private (List<string> types, List<string> interfaces, List<string> attributes, List<(string type, string method, int paramCount)> methods) ReadAssemblyMetadata()
-        {
-            var types = new List<string>();
-            var interfaces = new List<string>();
-            var attributes = new List<string>();
-            var methods = new List<(string, string, int)>();
-
-            using var stream = File.OpenRead(DllPath);
-            using var peReader = new PEReader(stream);
-            var mdReader = peReader.GetMetadataReader();
-
-            foreach (var typeHandle in mdReader.TypeDefinitions)
+            if (!File.Exists(mainDll))
             {
-                var typeDef = mdReader.GetTypeDefinition(typeHandle);
-                var ns = mdReader.GetString(typeDef.Namespace);
-                var name = mdReader.GetString(typeDef.Name);
-                var fullName = string.IsNullOrEmpty(ns) ? name : $"{ns}.{name}";
-                types.Add(fullName);
-
-                // Интерфейсы
-                foreach (var ifaceHandle in typeDef.GetInterfaceImplementations())
-                {
-                    var iface = mdReader.GetInterfaceImplementation(ifaceHandle);
-                    var ifaceName = GetFullName(mdReader, iface.Interface);
-                    interfaces.Add($"{fullName}:{ifaceName}");
-                }
-
-                // Атрибуты
-                foreach (var attrHandle in typeDef.GetCustomAttributes())
-                {
-                    var attr = mdReader.GetCustomAttribute(attrHandle);
-                    var attrName = GetAttributeTypeName(mdReader, attr);
-                    attributes.Add($"{fullName}:{attrName}");
-                }
-
-                // Методы
-                foreach (var methodHandle in typeDef.GetMethods())
-                {
-                    var methodDef = mdReader.GetMethodDefinition(methodHandle);
-                    var methodName = mdReader.GetString(methodDef.Name);
-                    var sig = methodDef.DecodeSignature(new ParamCounter(), null);
-                    methods.Add((fullName, methodName, sig.ParameterTypes.Length));
-                }
+                string projDir = Path.GetFullPath(Path.Combine(testDir, "..", "..", "..", "..", "STB2026", "bin", "Debug", "net8.0-windows"));
+                mainDll = Path.Combine(projDir, "STB2026.dll");
             }
 
-            return (types, interfaces, attributes, methods);
+            if (!File.Exists(mainDll))
+                throw new FileNotFoundException("STB2026.dll не найдена. Соберите основной проект.", mainDll);
+
+            string revitDir = @"C:\Program Files\Autodesk\Revit 2025";
+            string rtDir = RuntimeEnvironment.GetRuntimeDirectory();
+
+            var allPaths = new[] {
+                mainDll,
+                Path.Combine(revitDir, "RevitAPI.dll"),
+                Path.Combine(revitDir, "RevitAPIUI.dll"),
+                typeof(object).Assembly.Location,
+                Path.Combine(rtDir, "System.Runtime.dll"),
+                Path.Combine(rtDir, "System.Collections.dll"),
+                Path.Combine(rtDir, "netstandard.dll"),
+            }.Where(File.Exists);
+
+            _mlc = new MetadataLoadContext(new PathAssemblyResolver(allPaths));
+            _asm = _mlc.LoadFromAssemblyPath(mainDll);
         }
 
-        private static string GetFullName(MetadataReader reader, EntityHandle handle)
-        {
-            if (handle.Kind == HandleKind.TypeReference)
-            {
-                var typeRef = reader.GetTypeReference((TypeReferenceHandle)handle);
-                var ns = reader.GetString(typeRef.Namespace);
-                var name = reader.GetString(typeRef.Name);
-                return string.IsNullOrEmpty(ns) ? name : $"{ns}.{name}";
-            }
-            if (handle.Kind == HandleKind.MemberReference)
-            {
-                var memberRef = reader.GetMemberReference((MemberReferenceHandle)handle);
-                return GetFullName(reader, memberRef.Parent);
-            }
-            return handle.Kind.ToString();
-        }
+        public void Dispose() => _mlc?.Dispose();
 
-        private static string GetAttributeTypeName(MetadataReader reader, CustomAttribute attr)
-        {
-            if (attr.Constructor.Kind == HandleKind.MemberReference)
-            {
-                var memberRef = reader.GetMemberReference((MemberReferenceHandle)attr.Constructor);
-                return GetFullName(reader, memberRef.Parent);
-            }
-            if (attr.Constructor.Kind == HandleKind.MethodDefinition)
-            {
-                var methodDef = reader.GetMethodDefinition((MethodDefinitionHandle)attr.Constructor);
-                var typeDef = reader.GetTypeDefinition(methodDef.GetDeclaringType());
-                var ns = reader.GetString(typeDef.Namespace);
-                var name = reader.GetString(typeDef.Name);
-                return string.IsNullOrEmpty(ns) ? name : $"{ns}.{name}";
-            }
-            return "";
-        }
-
-        // Простой декодер сигнатур — считаем только количество параметров
-        private class ParamCounter : ISignatureTypeProvider<int, object?>
-        {
-            public int GetPrimitiveType(PrimitiveTypeCode typeCode) => 0;
-            public int GetTypeFromDefinition(MetadataReader reader, TypeDefinitionHandle handle, byte rawTypeKind) => 0;
-            public int GetTypeFromReference(MetadataReader reader, TypeReferenceHandle handle, byte rawTypeKind) => 0;
-            public int GetTypeFromSpecification(MetadataReader reader, object? genericContext, TypeSpecificationHandle handle, byte rawTypeKind) => 0;
-            public int GetSZArrayType(int elementType) => 0;
-            public int GetArrayType(int elementType, ArrayShape shape) => 0;
-            public int GetByReferenceType(int elementType) => 0;
-            public int GetPointerType(int elementType) => 0;
-            public int GetGenericInstantiation(int genericType, System.Collections.Immutable.ImmutableArray<int> typeArguments) => 0;
-            public int GetGenericTypeParameter(object? genericContext, int index) => 0;
-            public int GetGenericMethodParameter(object? genericContext, int index) => 0;
-            public int GetModifiedType(int modifier, int unmodifiedType, bool isRequired) => 0;
-            public int GetPinnedType(int elementType) => 0;
-            public int GetFunctionPointerType(MethodSignature<int> signature) => 0;
-        }
-
-        // ===== ТЕСТЫ =====
-
-        [Fact]
-        public void AssemblyFile_Exists()
-        {
-            Assert.True(File.Exists(DllPath), $"STB2026.dll не найден: {DllPath}");
-        }
-
-        [Fact]
-        public void Assembly_NameIsCorrect()
-        {
-            using var stream = File.OpenRead(DllPath);
-            using var pe = new PEReader(stream);
-            var reader = pe.GetMetadataReader();
-            var asmDef = reader.GetAssemblyDefinition();
-            Assert.Equal("STB2026", reader.GetString(asmDef.Name));
-        }
-
-        [Fact]
-        public void Assembly_ContainsAppClass()
-        {
-            var (types, _, _, _) = ReadAssemblyMetadata();
-            Assert.Contains("STB2026.App", types);
-        }
-
-        [Fact]
-        public void Assembly_ContainsHelloWorldCommand()
-        {
-            var (types, _, _, _) = ReadAssemblyMetadata();
-            Assert.Contains("STB2026.HelloWorldCommand", types);
-        }
-
-        [Fact]
-        public void App_ImplementsIExternalApplication()
-        {
-            var (_, interfaces, _, _) = ReadAssemblyMetadata();
-            Assert.Contains(interfaces,
-                i => i == "STB2026.App:Autodesk.Revit.UI.IExternalApplication");
-        }
-
-        [Fact]
-        public void App_HasOnStartupMethod()
-        {
-            var (_, _, _, methods) = ReadAssemblyMetadata();
-            Assert.Contains(methods, m => m.type == "STB2026.App" && m.method == "OnStartup");
-        }
-
-        [Fact]
-        public void App_HasOnShutdownMethod()
-        {
-            var (_, _, _, methods) = ReadAssemblyMetadata();
-            Assert.Contains(methods, m => m.type == "STB2026.App" && m.method == "OnShutdown");
-        }
+        // ========================================
+        // HelloWorldCommand
+        // ========================================
 
         [Fact]
         public void HelloWorldCommand_ImplementsIExternalCommand()
         {
-            var (_, interfaces, _, _) = ReadAssemblyMetadata();
-            Assert.Contains(interfaces,
-                i => i == "STB2026.HelloWorldCommand:Autodesk.Revit.UI.IExternalCommand");
+            var type = _asm.GetType("STB2026.HelloWorldCommand");
+            Assert.NotNull(type);
+            Assert.True(
+                type!.GetInterfaces().Any(i => i.FullName == "Autodesk.Revit.UI.IExternalCommand"),
+                "HelloWorldCommand должен реализовывать IExternalCommand");
         }
 
         [Fact]
         public void HelloWorldCommand_HasTransactionAttribute()
         {
-            var (_, _, attributes, _) = ReadAssemblyMetadata();
-            Assert.Contains(attributes,
-                a => a.StartsWith("STB2026.HelloWorldCommand:") &&
-                     a.Contains("TransactionAttribute"));
+            var type = _asm.GetType("STB2026.HelloWorldCommand")!;
+            var attr = type.CustomAttributes
+                .FirstOrDefault(a => a.AttributeType.Name == "TransactionAttribute");
+            Assert.NotNull(attr);
+        }
+
+        [Fact]
+        public void HelloWorldCommand_TransactionModeIsManual()
+        {
+            var type = _asm.GetType("STB2026.HelloWorldCommand")!;
+            var attr = type.CustomAttributes
+                .First(a => a.AttributeType.Name == "TransactionAttribute");
+            // TransactionMode enum: проверяем имя значения
+            var modeValue = (int)attr.ConstructorArguments[0].Value!;
+            var modeType = attr.ConstructorArguments[0].ArgumentType;
+            var modeName = Enum.GetName(modeType, modeValue);
+            Assert.Equal("Manual", modeName);
         }
 
         [Fact]
         public void HelloWorldCommand_HasExecuteMethod()
         {
-            var (_, _, _, methods) = ReadAssemblyMetadata();
-            var execute = methods.FirstOrDefault(
-                m => m.type == "STB2026.HelloWorldCommand" && m.method == "Execute");
-            Assert.NotEqual(default, execute);
-            Assert.Equal(3, execute.paramCount);
+            var type = _asm.GetType("STB2026.HelloWorldCommand")!;
+            var method = type.GetMethod("Execute");
+            Assert.NotNull(method);
+            Assert.Equal("Result", method!.ReturnType.Name);
+            Assert.Equal(3, method.GetParameters().Length);
         }
 
         [Fact]
-        public void App_HasCorrectNamespace()
+        public void HelloWorldCommand_HasDefaultConstructor()
         {
-            var (types, _, _, _) = ReadAssemblyMetadata();
-            Assert.Contains("STB2026.App", types);
+            var type = _asm.GetType("STB2026.HelloWorldCommand")!;
+            Assert.True(type.GetConstructors().Any(c => c.GetParameters().Length == 0));
+        }
+
+        // ========================================
+        // App
+        // ========================================
+
+        [Fact]
+        public void App_ImplementsIExternalApplication()
+        {
+            var type = _asm.GetType("STB2026.App");
+            Assert.NotNull(type);
+            Assert.True(
+                type!.GetInterfaces().Any(i => i.FullName == "Autodesk.Revit.UI.IExternalApplication"),
+                "App должен реализовывать IExternalApplication");
         }
 
         [Fact]
-        public void HelloWorldCommand_HasCorrectNamespace()
+        public void App_HasOnStartupMethod()
         {
-            var (types, _, _, _) = ReadAssemblyMetadata();
-            Assert.Contains("STB2026.HelloWorldCommand", types);
+            var type = _asm.GetType("STB2026.App")!;
+            var method = type.GetMethod("OnStartup");
+            Assert.NotNull(method);
+            Assert.Equal("Result", method!.ReturnType.Name);
+        }
+
+        [Fact]
+        public void App_HasOnShutdownMethod()
+        {
+            var type = _asm.GetType("STB2026.App")!;
+            var method = type.GetMethod("OnShutdown");
+            Assert.NotNull(method);
+            Assert.Equal("Result", method!.ReturnType.Name);
+        }
+
+        [Fact]
+        public void App_HasDefaultConstructor()
+        {
+            var type = _asm.GetType("STB2026.App")!;
+            Assert.True(type.GetConstructors().Any(c => c.GetParameters().Length == 0));
+        }
+
+        // ========================================
+        // Сборка
+        // ========================================
+
+        [Fact]
+        public void Assembly_ContainsExpectedTypes()
+        {
+            Assert.NotNull(_asm.GetType("STB2026.App"));
+            Assert.NotNull(_asm.GetType("STB2026.HelloWorldCommand"));
+        }
+
+        [Fact]
+        public void Assembly_NameIsCorrect()
+        {
+            Assert.Equal("STB2026", _asm.GetName().Name);
+        }
+
+        [Fact]
+        public void Assembly_HasCorrectNamespace()
+        {
+            Assert.Equal("STB2026", _asm.GetType("STB2026.App")!.Namespace);
+            Assert.Equal("STB2026", _asm.GetType("STB2026.HelloWorldCommand")!.Namespace);
         }
     }
 }
