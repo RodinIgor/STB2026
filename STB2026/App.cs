@@ -10,13 +10,9 @@ namespace STB2026
         {
             try
             {
-                // Создаём вкладку на ленте Revit
                 application.CreateRibbonTab("STB2026");
-
-                // Создаём панель
                 RibbonPanel panel = application.CreateRibbonPanel("STB2026", "Основные");
 
-                // Кнопка "Привет мир"
                 string assemblyPath = Assembly.GetExecutingAssembly().Location;
 
                 PushButtonData buttonData = new PushButtonData(
@@ -25,9 +21,7 @@ namespace STB2026
                     assemblyPath,
                     "STB2026.HelloWorldCommand"
                 );
-
                 buttonData.ToolTip = "Показать приветственное окно STB2026";
-
                 panel.AddItem(buttonData);
 
                 return Result.Succeeded;

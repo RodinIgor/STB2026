@@ -1,35 +1,29 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
-  <PropertyGroup>
-    <TargetFramework>net8.0-windows</TargetFramework>
-    <UseWPF>true</UseWPF>
-    <OutputType>Library</OutputType>
-    <RootNamespace>STB2026</RootNamespace>
-    <AssemblyName>STB2026</AssemblyName>
-    <LangVersion>latest</LangVersion>
-    <ImplicitUsings>disable</ImplicitUsings>
-    <Nullable>enable</Nullable>
-  </PropertyGroup>
+	<PropertyGroup>
+		<TargetFramework>net8.0-windows</TargetFramework>
+		<UseWPF>true</UseWPF>
+		<OutputType>Library</OutputType>
+		<RootNamespace>STB2026</RootNamespace>
+		<AssemblyName>STB2026</AssemblyName>
+		<LangVersion>latest</LangVersion>
+		<ImplicitUsings>disable</ImplicitUsings>
+		<Nullable>enable</Nullable>
+	</PropertyGroup>
 
-  <!-- Revit 2025 API через NuGet -->
-  <ItemGroup>
-	  <PackageReference Include="Revit_All_Main_Versions_API_x64" Version="2026.0.0" />
-  </ItemGroup>
-
-  <!-- Если NuGet недоступен — раскомментируйте и укажите путь к Revit:
-  <PropertyGroup>
-    <RevitApiPath>C:\Program Files\Autodesk\Revit 2025</RevitApiPath>
-  </PropertyGroup>
-  <ItemGroup>
-    <Reference Include="RevitAPI">
-      <HintPath>$(RevitApiPath)\RevitAPI.dll</HintPath>
-      <Private>false</Private>
-    </Reference>
-    <Reference Include="RevitAPIUI">
-      <HintPath>$(RevitApiPath)\RevitAPIUI.dll</HintPath>
-      <Private>false</Private>
-    </Reference>
-  </ItemGroup>
-  -->
+	<!-- Revit 2025 API — локальные ссылки (надёжнее чем NuGet) -->
+	<PropertyGroup>
+		<RevitApiPath>C:\Program Files\Autodesk\Revit 2025</RevitApiPath>
+	</PropertyGroup>
+	<ItemGroup>
+		<Reference Include="RevitAPI">
+			<HintPath>$(RevitApiPath)\RevitAPI.dll</HintPath>
+			<Private>false</Private>
+		</Reference>
+		<Reference Include="RevitAPIUI">
+			<HintPath>$(RevitApiPath)\RevitAPIUI.dll</HintPath>
+			<Private>false</Private>
+		</Reference>
+	</ItemGroup>
 
 </Project>
