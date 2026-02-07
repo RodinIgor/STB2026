@@ -14,7 +14,27 @@ namespace STB2026.Services
         public int Warning { get; set; }
         public int Exceeded { get; set; }
         public int NoData { get; set; }
+
+        /// <summary>
+        /// Использованные диапазоны: ключ — описание, значение — количество
+        /// </summary>
         public Dictionary<string, int> RangeUsage { get; set; } = new Dictionary<string, int>();
+
+        /// <summary>
+        /// Детали по каждому воздуховоду для расширенного отчёта
+        /// </summary>
+        public List<DuctVelocityDetail> Details { get; set; } = new List<DuctVelocityDetail>();
+    }
+
+    public class DuctVelocityDetail
+    {
+        public int DuctId { get; set; }
+        public string SystemName { get; set; } = "";
+        public string Size { get; set; } = "";
+        public double FlowM3h { get; set; }
+        public double VelocityMs { get; set; }
+        public string RangeDesc { get; set; } = "";
+        public VelocityNorms.VelocityStatus Status { get; set; }
     }
 
     public class VelocityCheckerService
@@ -24,7 +44,7 @@ namespace STB2026.Services
 
         private static readonly Color ColorNormal = new Color(0, 180, 0);
         private static readonly Color ColorWarning = new Color(255, 200, 0);
-        private static readonly Color ColorExceeded = new Color(200, 80, 0); // тёмно-оранжевый (не красный — конфликт с приточкой)
+        private static readonly Color ColorExceeded = new Color(200, 80, 0);
         private static readonly Color ColorNoData = new Color(180, 180, 180);
 
         public VelocityCheckerService(Document doc, View view)
@@ -46,8 +66,6 @@ namespace STB2026.Services
             result.Total = ducts.Count;
             if (ducts.Count == 0) return result;
 
-            var systemFlowCache = new Dictionary<ElementId, double>();
-
             using (Transaction tx = new Transaction(_doc, "STB2026: Проверка скоростей"))
             {
                 tx.Start();
@@ -58,7 +76,7 @@ namespace STB2026.Services
                     {
                         double velocity = GetVelocity(duct);
                         bool isSupply = IsSupplySystem(duct);
-                        double systemFlow = GetSystemFlow(duct, systemFlowCache);
+                        double flow = GetFlow(duct);
 
                         VelocityNorms.VelocityStatus status;
                         if (velocity <= 0)
@@ -67,16 +85,28 @@ namespace STB2026.Services
                         }
                         else
                         {
-                            status = VelocityNorms.CheckVelocitySimple(velocity, systemFlow, isSupply);
+                            status = VelocityNorms.CheckVelocitySimple(velocity, flow, isSupply);
                         }
 
                         // Учитываем использованный диапазон
-                        var range = VelocityNorms.GetRange(systemFlow, isSupply);
+                        var range = VelocityNorms.GetRange(flow, isSupply);
                         string rangeDesc = $"{range.Description}: {range.Min}–{range.Max} м/с";
                         if (result.RangeUsage.ContainsKey(rangeDesc))
                             result.RangeUsage[rangeDesc]++;
                         else
                             result.RangeUsage[rangeDesc] = 1;
+
+                        // Детали
+                        result.Details.Add(new DuctVelocityDetail
+                        {
+                            DuctId = duct.Id.IntegerValue,
+                            SystemName = GetSystemName(duct),
+                            Size = GetDuctSize(duct),
+                            FlowM3h = flow,
+                            VelocityMs = Math.Round(velocity, 2),
+                            RangeDesc = rangeDesc,
+                            Status = status
+                        });
 
                         Color color = GetStatusColor(status);
                         ApplyColor(duct.Id, color);
@@ -147,23 +177,59 @@ namespace STB2026.Services
             return 0;
         }
 
+        /// <summary>
+        /// Определяет тип системы по параметру «Классификация систем» (RBS_SYSTEM_CLASSIFICATION_PARAM).
+        /// Возвращает: «Приточный воздух» / «Supply Air» → true, иначе false.
+        /// Fallback: проверка имени системы и типа системы.
+        /// </summary>
         private bool IsSupplySystem(Duct duct)
         {
+            // 1. Приоритетный параметр — Классификация систем (-1140325)
+            Parameter classParam = duct.get_Parameter(BuiltInParameter.RBS_SYSTEM_CLASSIFICATION_PARAM);
+            if (classParam != null && classParam.HasValue)
+            {
+                string classification = classParam.AsString() ?? "";
+                if (!string.IsNullOrEmpty(classification))
+                {
+                    return classification.IndexOf("Приточн", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                           classification.IndexOf("Supply", StringComparison.OrdinalIgnoreCase) >= 0;
+                }
+            }
+
+            // 2. Fallback — Имя системы
+            Parameter sysNameParam = duct.get_Parameter(BuiltInParameter.RBS_SYSTEM_NAME_PARAM);
+            if (sysNameParam != null && sysNameParam.HasValue)
+            {
+                string sysName = sysNameParam.AsString() ?? "";
+                if (sysName.StartsWith("П ", StringComparison.Ordinal) ||
+                    sysName.StartsWith("П", StringComparison.Ordinal) && sysName.Length > 1 && char.IsDigit(sysName[1]))
+                {
+                    return true;
+                }
+            }
+
+            // 3. Fallback — Тип системы (ElementId → AsValueString)
             Parameter sysTypeParam = duct.get_Parameter(BuiltInParameter.RBS_DUCT_SYSTEM_TYPE_PARAM);
             if (sysTypeParam != null && sysTypeParam.HasValue)
             {
                 string sysType = sysTypeParam.AsValueString() ?? "";
-                return sysType.Contains("Приточ", StringComparison.OrdinalIgnoreCase) ||
-                       sysType.Contains("Supply", StringComparison.OrdinalIgnoreCase) ||
-                       sysType.Contains("П ", StringComparison.Ordinal);
+                return sysType.IndexOf("Приток", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                       sysType.IndexOf("Supply", StringComparison.OrdinalIgnoreCase) >= 0;
             }
-            return true;
+
+            return true; // По умолчанию — приточная
         }
 
-        private double GetSystemFlow(Duct duct, Dictionary<ElementId, double> cache)
+        private string GetSystemName(Duct duct)
         {
-            double flow = GetFlow(duct);
-            return flow > 0 ? flow : 5000;
+            Parameter p = duct.get_Parameter(BuiltInParameter.RBS_SYSTEM_NAME_PARAM);
+            return p?.AsString() ?? "N/A";
+        }
+
+        private string GetDuctSize(Duct duct)
+        {
+            Parameter p = duct.get_Parameter(BuiltInParameter.RBS_CALCULATED_SIZE);
+            return p?.AsString() ?? "N/A";
         }
 
         private Color GetStatusColor(VelocityNorms.VelocityStatus status)
@@ -191,6 +257,30 @@ namespace STB2026.Services
             }
 
             _view.SetElementOverrides(elementId, ogs);
+        }
+
+        /// <summary>
+        /// Полный справочник норм СП 60.13330.2020 для отображения в диалоге.
+        /// </summary>
+        public static string GetFullNormsReference()
+        {
+            return
+                "═══ СП 60.13330.2020, Приложение Л ═══\n\n" +
+                "ПРИТОЧНАЯ вентиляция (общественные здания):\n" +
+                "  до 3 000 м³/ч:     3,5 – 4,5 м/с\n" +
+                "  3 000–10 000 м³/ч:  4,5 – 5,5 м/с\n" +
+                "  свыше 10 000 м³/ч:  5,0 – 6,0 м/с\n\n" +
+                "ВЫТЯЖНАЯ вентиляция (общественные здания):\n" +
+                "  до 500 м³/ч:        2,5 – 3,5 м/с\n" +
+                "  500–2 000 м³/ч:     3,5 – 4,5 м/с\n" +
+                "  2 000–5 000 м³/ч:   4,0 – 5,0 м/с\n" +
+                "  свыше 5 000 м³/ч:   4,5 – 5,5 м/с\n\n" +
+                "ЖИЛЫЕ здания (мех. побуждение):\n" +
+                "  в помещении:        1,5 – 2,5 м/с\n" +
+                "  вне помещений:      2,0 – 4,0 м/с\n\n" +
+                "ПРОИЗВОДСТВЕННЫЕ здания:\n" +
+                "  приточная:          4,0 – 7,0 м/с\n" +
+                "  вытяжная:           4,0 – 8,0 м/с";
         }
     }
 }

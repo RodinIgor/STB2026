@@ -19,20 +19,33 @@ namespace STB2026.Commands
             {
                 UIDocument uidoc = commandData.Application.ActiveUIDocument;
                 Document doc = uidoc.Document;
+                View view = doc.ActiveView;
 
-                var service = new Services.SystemValidatorService(doc);
-                var result = service.Validate();
+                if (view is ViewSheet || view is ViewSchedule)
+                {
+                    TaskDialog.Show("STB2026", "Валидация доступна только на видах модели.");
+                    return Result.Cancelled;
+                }
+
+                // Валидация с автоматической подсветкой
+                var service = new Services.SystemValidatorService(doc, view);
+                var result = service.ValidateAndColorize();
 
                 TaskDialog dlg = new TaskDialog("STB2026 — Валидация системы");
                 dlg.MainInstruction = result.HasErrors
                     ? "Обнаружены проблемы"
                     : "Система в порядке";
 
-                dlg.MainContent =
-                    $"Всего элементов: {result.TotalElements}\n\n" +
-                    $"Нулевой расход: {result.ZeroFlowCount}\n" +
-                    $"Не подключены: {result.DisconnectedCount}\n" +
-                    $"Без системы: {result.NoSystemCount}";
+                string content =
+                    $"Элементов на виде: {result.TotalElements}\n\n" +
+                    $"🔴 Нулевой расход: {result.ZeroFlowCount}\n" +
+                    $"🟡 Не подключены: {result.DisconnectedCount}\n" +
+                    $"⚪ Без системы: {result.NoSystemCount}";
+
+                if (result.HasErrors)
+                    content += "\n\nПроблемные элементы подсвечены на виде.";
+
+                dlg.MainContent = content;
 
                 if (result.HasErrors)
                 {
@@ -41,28 +54,29 @@ namespace STB2026.Commands
                     string details = "";
                     if (result.ZeroFlowIds.Any())
                     {
-                        details += $"Нулевой расход (ID): {string.Join(", ", result.ZeroFlowIds.Take(20))}";
+                        details += $"🔴 Нулевой расход (ID): {string.Join(", ", result.ZeroFlowIds.Take(20))}";
                         if (result.ZeroFlowIds.Count > 20)
                             details += $"... и ещё {result.ZeroFlowIds.Count - 20}";
                         details += "\n\n";
                     }
                     if (result.DisconnectedIds.Any())
                     {
-                        details += $"Не подключены (ID): {string.Join(", ", result.DisconnectedIds.Take(20))}";
+                        details += $"🟡 Не подключены (ID): {string.Join(", ", result.DisconnectedIds.Take(20))}";
                         if (result.DisconnectedIds.Count > 20)
                             details += $"... и ещё {result.DisconnectedIds.Count - 20}";
                         details += "\n\n";
                     }
                     if (result.NoSystemIds.Any())
                     {
-                        details += $"Без системы (ID): {string.Join(", ", result.NoSystemIds.Take(20))}";
+                        details += $"⚪ Без системы (ID): {string.Join(", ", result.NoSystemIds.Take(20))}";
                         if (result.NoSystemIds.Count > 20)
                             details += $"... и ещё {result.NoSystemIds.Count - 20}";
                     }
 
                     dlg.ExpandedContent = details;
+
                     dlg.AddCommandLink(TaskDialogCommandLinkId.CommandLink1,
-                        "Выделить проблемные элементы и подсветить");
+                        "Выделить проблемные элементы в модели");
                 }
 
                 dlg.AddCommandLink(TaskDialogCommandLinkId.CommandLink2,
@@ -72,6 +86,7 @@ namespace STB2026.Commands
 
                 if (dialogResult == TaskDialogResult.CommandLink1 && result.HasErrors)
                 {
+                    // Только выделение (Selection) — подсветка уже сделана
                     var allProblemIds = result.ZeroFlowIds
                         .Concat(result.DisconnectedIds)
                         .Concat(result.NoSystemIds)
@@ -80,40 +95,10 @@ namespace STB2026.Commands
                         .ToList();
 
                     uidoc.Selection.SetElementIds(allProblemIds);
-
-                    using (Transaction tx = new Transaction(doc, "STB2026: Подсветка проблем"))
-                    {
-                        tx.Start();
-                        View view = doc.ActiveView;
-
-                        var redOverride = new OverrideGraphicSettings();
-                        redOverride.SetProjectionLineColor(new Color(255, 0, 0));
-
-                        var yellowOverride = new OverrideGraphicSettings();
-                        yellowOverride.SetProjectionLineColor(new Color(255, 200, 0));
-
-                        var grayOverride = new OverrideGraphicSettings();
-                        grayOverride.SetProjectionLineColor(new Color(128, 128, 128));
-
-                        foreach (int id in result.ZeroFlowIds)
-                        {
-                            try { view.SetElementOverrides(new ElementId(id), redOverride); } catch { }
-                        }
-                        foreach (int id in result.DisconnectedIds)
-                        {
-                            try { view.SetElementOverrides(new ElementId(id), yellowOverride); } catch { }
-                        }
-                        foreach (int id in result.NoSystemIds)
-                        {
-                            try { view.SetElementOverrides(new ElementId(id), grayOverride); } catch { }
-                        }
-
-                        tx.Commit();
-                    }
                 }
                 else if (dialogResult == TaskDialogResult.CommandLink2)
                 {
-                    ResetAllMepColors(doc);
+                    ResetAllMepColors(doc, view);
                 }
 
                 return Result.Succeeded;
@@ -129,9 +114,8 @@ namespace STB2026.Commands
             }
         }
 
-        private void ResetAllMepColors(Document doc)
+        private void ResetAllMepColors(Document doc, View view)
         {
-            View view = doc.ActiveView;
             using (Transaction tx = new Transaction(doc, "STB2026: Сброс цветов"))
             {
                 tx.Start();
@@ -159,7 +143,7 @@ namespace STB2026.Commands
 
                 tx.Commit();
             }
-            TaskDialog.Show("STB2026", "Цвета сброшены для всех воздуховодов и фитингов.");
+            TaskDialog.Show("STB2026", "Цвета сброшены.");
         }
     }
 }

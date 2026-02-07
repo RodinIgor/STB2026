@@ -30,8 +30,9 @@ namespace STB2026.Commands
                     return Result.Succeeded;
                 }
 
+                // CSV с ID воздуховодов и стен
                 var sb = new StringBuilder();
-                sb.AppendLine("Воздуховод;Система;Размер;Стена;Тип стены;Источник;X (мм);Y (мм);Z (мм);Отметка (мм)");
+                sb.AppendLine("ID воздуховода;Система;Размер;ID стены;Тип стены;Источник;X (мм);Y (мм);Z (мм);Отметка (мм)");
 
                 foreach (var item in result.Intersections)
                 {
@@ -47,6 +48,7 @@ namespace STB2026.Commands
                 string filePath = Path.Combine(folder, fileName);
                 File.WriteAllText(filePath, sb.ToString(), Encoding.UTF8);
 
+                // Подсветка пересекающихся воздуховодов
                 using (Transaction tx = new Transaction(doc, "STB2026: Подсветка пересечений"))
                 {
                     tx.Start();

@@ -19,7 +19,6 @@ namespace STB2026.Commands
                 Document doc = uidoc.Document;
                 View view = doc.ActiveView;
 
-                // Проверяем, что вид подходит для маркировки
                 if (view is ViewSheet || view is ViewSchedule || view is View3D)
                 {
                     TaskDialog.Show("STB2026",
@@ -32,10 +31,17 @@ namespace STB2026.Commands
 
                 TaskDialog dlg = new TaskDialog("STB2026 — Маркировка воздуховодов");
                 dlg.MainInstruction = "Маркировка завершена";
-                dlg.MainContent =
+
+                string content =
                     $"Промаркировано: {result.Tagged}\n" +
                     $"Уже имели марки: {result.AlreadyTagged}\n" +
                     $"Пропущено (ошибки): {result.Skipped}";
+
+                if (result.GroupsMerged > 0)
+                    content += $"\n\nОбъединено в группы: {result.GroupsMerged} воздуховодов\n" +
+                               "(одна марка на участок с одинаковым расходом и сечением)";
+
+                dlg.MainContent = content;
 
                 if (result.Skipped > 0 && result.Errors.Count > 0)
                 {

@@ -39,15 +39,40 @@ namespace STB2026.Commands
                     $"🔴 Превышение: {result.Exceeded}\n" +
                     $"⚪ Нет данных: {result.NoData}";
 
+                // Развёрнутый блок — применённые нормы + полный справочник
+                string expandedContent = "";
+
                 if (result.RangeUsage.Count > 0)
                 {
-                    string rangeInfo = "Применённые нормы СП 60.13330.2020:\n";
+                    expandedContent += "Применённые нормы:\n";
                     foreach (var kvp in result.RangeUsage.OrderByDescending(x => x.Value))
                     {
-                        rangeInfo += $"  • {kvp.Key} — {kvp.Value} шт.\n";
+                        expandedContent += $"  • {kvp.Key} — {kvp.Value} шт.\n";
                     }
-                    dlg.ExpandedContent = rangeInfo;
+                    expandedContent += "\n";
                 }
+
+                // Детали по воздуховодам с превышением
+                var exceeded = result.Details
+                    .Where(d => d.Status == Models.VelocityNorms.VelocityStatus.Exceeded)
+                    .ToList();
+                if (exceeded.Count > 0)
+                {
+                    expandedContent += "Воздуховоды с превышением:\n";
+                    foreach (var d in exceeded.Take(15))
+                    {
+                        expandedContent += $"  ID {d.DuctId}: {d.SystemName}, " +
+                            $"{d.Size}, {d.VelocityMs} м/с (норма: {d.RangeDesc})\n";
+                    }
+                    if (exceeded.Count > 15)
+                        expandedContent += $"  ...и ещё {exceeded.Count - 15}\n";
+                    expandedContent += "\n";
+                }
+
+                // Полный справочник норм
+                expandedContent += Services.VelocityCheckerService.GetFullNormsReference();
+
+                dlg.ExpandedContent = expandedContent;
 
                 if (result.Exceeded > 0)
                 {
