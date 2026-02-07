@@ -1,7 +1,9 @@
 using Autodesk.Revit.Attributes;
 using Autodesk.Revit.DB;
+using Autodesk.Revit.DB.Mechanical;
 using Autodesk.Revit.UI;
 using System;
+using System.Linq;
 
 namespace STB2026.Commands
 {
@@ -21,8 +23,7 @@ namespace STB2026.Commands
 
                 if (view is ViewSheet || view is ViewSchedule)
                 {
-                    TaskDialog.Show("STB2026",
-                        "Проверка скоростей доступна только на видах модели.");
+                    TaskDialog.Show("STB2026", "Проверка скоростей доступна только на видах модели.");
                     return Result.Cancelled;
                 }
 
@@ -38,14 +39,32 @@ namespace STB2026.Commands
                     $"🔴 Превышение: {result.Exceeded}\n" +
                     $"⚪ Нет данных: {result.NoData}";
 
+                if (result.RangeUsage.Count > 0)
+                {
+                    string rangeInfo = "Применённые нормы СП 60.13330.2020:\n";
+                    foreach (var kvp in result.RangeUsage.OrderByDescending(x => x.Value))
+                    {
+                        rangeInfo += $"  • {kvp.Key} — {kvp.Value} шт.\n";
+                    }
+                    dlg.ExpandedContent = rangeInfo;
+                }
+
                 if (result.Exceeded > 0)
                 {
                     dlg.MainIcon = TaskDialogIcon.TaskDialogIconWarning;
                 }
 
-                dlg.FooterText = "Цветовая карта применена к текущему виду.\n" +
-                                 "Для сброса: Вид → Графика → Сбросить переопределения.";
-                dlg.Show();
+                dlg.AddCommandLink(TaskDialogCommandLinkId.CommandLink1,
+                    "Сбросить цвета на текущем виде");
+
+                dlg.FooterText = "Цветовая карта применена к текущему виду.";
+
+                var dialogResult = dlg.Show();
+
+                if (dialogResult == TaskDialogResult.CommandLink1)
+                {
+                    ResetColors(doc, view);
+                }
 
                 return Result.Succeeded;
             }
@@ -58,6 +77,27 @@ namespace STB2026.Commands
                 message = ex.Message;
                 return Result.Failed;
             }
+        }
+
+        private void ResetColors(Document doc, View view)
+        {
+            using (Transaction tx = new Transaction(doc, "STB2026: Сброс цветов"))
+            {
+                tx.Start();
+                var ducts = new FilteredElementCollector(doc, view.Id)
+                    .OfClass(typeof(Duct))
+                    .WhereElementIsNotElementType()
+                    .ToList();
+
+                var emptyOverride = new OverrideGraphicSettings();
+                foreach (var duct in ducts)
+                {
+                    try { view.SetElementOverrides(duct.Id, emptyOverride); } catch { }
+                }
+                tx.Commit();
+            }
+
+            TaskDialog.Show("STB2026", "Цвета сброшены.");
         }
     }
 }

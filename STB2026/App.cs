@@ -12,7 +12,6 @@ namespace STB2026
             {
                 string assemblyPath = Assembly.GetExecutingAssembly().Location;
 
-                // Создаём вкладку на ленте Revit
                 application.CreateRibbonTab("STB2026");
 
                 // ═══════════════════════════════════════
@@ -27,7 +26,7 @@ namespace STB2026
                     "STB2026.Commands.TagDuctsCommand"
                 );
                 btnTagDucts.ToolTip = "Автоматическая маркировка воздуховодов:\nрасход, размер, скорость";
-                btnTagDucts.LargeImage = null; // TODO: иконка 32x32
+                btnTagDucts.LargeImage = null;
                 panelDecor.AddItem(btnTagDucts);
 
                 // ═══════════════════════════════════════
@@ -41,7 +40,7 @@ namespace STB2026
                     assemblyPath,
                     "STB2026.Commands.VelocityCheckCommand"
                 );
-                btnVelocity.ToolTip = "Проверка скоростей воздуха по СП 60.13330.2020\nЦветовая карта: зелёный/жёлтый/красный";
+                btnVelocity.ToolTip = "Проверка скоростей воздуха по СП 60.13330.2020\nЦветовая карта: зелёный/жёлтый/оранжевый";
                 panelChecks.AddItem(btnVelocity);
 
                 PushButtonData btnValidation = new PushButtonData(
@@ -52,6 +51,15 @@ namespace STB2026
                 );
                 btnValidation.ToolTip = "Проверка: нулевые расходы, отключённые элементы,\nненазначенные системы";
                 panelChecks.AddItem(btnValidation);
+
+                PushButtonData btnResetColors = new PushButtonData(
+                    "cmdResetColors",
+                    "Сбросить\nцвета",
+                    assemblyPath,
+                    "STB2026.Commands.ResetColorsCommand"
+                );
+                btnResetColors.ToolTip = "Сбросить цветовые переопределения\nдля всех воздуховодов на текущем виде";
+                panelChecks.AddItem(btnResetColors);
 
                 // ═══════════════════════════════════════
                 // Панель 3: Расчёты
@@ -64,11 +72,11 @@ namespace STB2026
                     assemblyPath,
                     "STB2026.Commands.WallIntersectionsCommand"
                 );
-                btnWallInt.ToolTip = "Поиск пересечений воздуховодов со стенами\nи формирование координатного отчёта";
+                btnWallInt.ToolTip = "Поиск пересечений воздуховодов со стенами\n(включая связанные файлы) и координатный отчёт";
                 panelCalc.AddItem(btnWallInt);
 
                 // ═══════════════════════════════════════
-                // Панель 4: Отчёты (зарезервирована)
+                // Панель 4: Отчёты
                 // ═══════════════════════════════════════
                 RibbonPanel panelReports = application.CreateRibbonPanel("STB2026", "Отчёты");
 
@@ -78,7 +86,7 @@ namespace STB2026
                     assemblyPath,
                     "STB2026.HelloWorldCommand"
                 );
-                btnHello.ToolTip = "Информация о плагине STB2026";
+                btnHello.ToolTip = "Информация о плагине STB2026 v1.1";
                 panelReports.AddItem(btnHello);
 
                 return Result.Succeeded;

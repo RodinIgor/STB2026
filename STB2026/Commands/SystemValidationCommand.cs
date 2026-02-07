@@ -1,5 +1,6 @@
 using Autodesk.Revit.Attributes;
 using Autodesk.Revit.DB;
+using Autodesk.Revit.DB.Mechanical;
 using Autodesk.Revit.UI;
 using System;
 using System.Linq;
@@ -21,8 +22,6 @@ namespace STB2026.Commands
 
                 var service = new Services.SystemValidatorService(doc);
                 var result = service.Validate();
-
-                string statusIcon = result.HasErrors ? "⚠️" : "✅";
 
                 TaskDialog dlg = new TaskDialog("STB2026 — Валидация системы");
                 dlg.MainInstruction = result.HasErrors
@@ -62,17 +61,17 @@ namespace STB2026.Commands
                     }
 
                     dlg.ExpandedContent = details;
-
-                    // Подсветка проблемных элементов
                     dlg.AddCommandLink(TaskDialogCommandLinkId.CommandLink1,
-                        "Выделить проблемные элементы в модели");
+                        "Выделить проблемные элементы и подсветить");
                 }
+
+                dlg.AddCommandLink(TaskDialogCommandLinkId.CommandLink2,
+                    "Сбросить цвета на текущем виде");
 
                 var dialogResult = dlg.Show();
 
                 if (dialogResult == TaskDialogResult.CommandLink1 && result.HasErrors)
                 {
-                    // Выделяем проблемные элементы
                     var allProblemIds = result.ZeroFlowIds
                         .Concat(result.DisconnectedIds)
                         .Concat(result.NoSystemIds)
@@ -82,7 +81,6 @@ namespace STB2026.Commands
 
                     uidoc.Selection.SetElementIds(allProblemIds);
 
-                    // Цветовая подсветка
                     using (Transaction tx = new Transaction(doc, "STB2026: Подсветка проблем"))
                     {
                         tx.Start();
@@ -113,6 +111,10 @@ namespace STB2026.Commands
                         tx.Commit();
                     }
                 }
+                else if (dialogResult == TaskDialogResult.CommandLink2)
+                {
+                    ResetAllMepColors(doc);
+                }
 
                 return Result.Succeeded;
             }
@@ -125,6 +127,39 @@ namespace STB2026.Commands
                 message = ex.Message;
                 return Result.Failed;
             }
+        }
+
+        private void ResetAllMepColors(Document doc)
+        {
+            View view = doc.ActiveView;
+            using (Transaction tx = new Transaction(doc, "STB2026: Сброс цветов"))
+            {
+                tx.Start();
+                var emptyOverride = new OverrideGraphicSettings();
+
+                var allMepElements = new FilteredElementCollector(doc, view.Id)
+                    .OfClass(typeof(Duct))
+                    .WhereElementIsNotElementType()
+                    .ToList();
+
+                var fittings = new FilteredElementCollector(doc, view.Id)
+                    .OfCategory(BuiltInCategory.OST_DuctFitting)
+                    .WhereElementIsNotElementType()
+                    .ToList();
+
+                var terminals = new FilteredElementCollector(doc, view.Id)
+                    .OfCategory(BuiltInCategory.OST_DuctTerminal)
+                    .WhereElementIsNotElementType()
+                    .ToList();
+
+                foreach (var elem in allMepElements.Concat(fittings).Concat(terminals))
+                {
+                    try { view.SetElementOverrides(elem.Id, emptyOverride); } catch { }
+                }
+
+                tx.Commit();
+            }
+            TaskDialog.Show("STB2026", "Цвета сброшены для всех воздуховодов и фитингов.");
         }
     }
 }
