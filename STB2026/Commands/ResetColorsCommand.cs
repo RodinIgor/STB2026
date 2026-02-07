@@ -36,21 +36,25 @@ namespace STB2026.Commands
                     tx.Start();
                     var emptyOverride = new OverrideGraphicSettings();
 
+                    // Воздуховоды
                     var ducts = new FilteredElementCollector(doc, view.Id)
                         .OfClass(typeof(Duct))
                         .WhereElementIsNotElementType()
                         .ToList();
 
+                    // Фитинги
                     var fittings = new FilteredElementCollector(doc, view.Id)
                         .OfCategory(BuiltInCategory.OST_DuctFitting)
                         .WhereElementIsNotElementType()
                         .ToList();
 
+                    // Терминалы
                     var terminals = new FilteredElementCollector(doc, view.Id)
                         .OfCategory(BuiltInCategory.OST_DuctTerminal)
                         .WhereElementIsNotElementType()
                         .ToList();
 
+                    // Оборудование
                     var equipment = new FilteredElementCollector(doc, view.Id)
                         .OfCategory(BuiltInCategory.OST_MechanicalEquipment)
                         .WhereElementIsNotElementType()
