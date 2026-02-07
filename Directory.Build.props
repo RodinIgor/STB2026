@@ -1,0 +1,26 @@
+<Project>
+	<Target Name="CopyAddinToRevit" AfterTargets="Build">
+		<PropertyGroup>
+			<RevitAddinsFolder>$(AppData)\Autodesk\Revit\Addins\2025</RevitAddinsFolder>
+			<AddinContent>
+				&lt;?xml version="1.0" encoding="utf-8"?&gt;
+				&lt;RevitAddIns&gt;
+				&lt;AddIn Type="Application"&gt;
+				&lt;Name&gt;STB2026&lt;/Name&gt;
+				&lt;Assembly&gt;$(TargetPath)&lt;/Assembly&gt;
+				&lt;AddInId&gt;E8F3B5A1-7C2D-4F6E-9A1B-3D5E7F8A2C4D&lt;/AddInId&gt;
+				&lt;FullClassName&gt;STB2026.App&lt;/FullClassName&gt;
+				&lt;VendorId&gt;STB2026&lt;/VendorId&gt;
+				&lt;VendorDescription&gt;STB2026&lt;/VendorDescription&gt;
+				&lt;/AddIn&gt;
+				&lt;/RevitAddIns&gt;
+			</AddinContent>
+		</PropertyGroup>
+		<MakeDir Directories="$(RevitAddinsFolder)" Condition="!Exists('$(RevitAddinsFolder)')" />
+		<WriteLinesToFile
+		  File="$(RevitAddinsFolder)\STB2026.addin"
+		  Lines="$(AddinContent)"
+		  Overwrite="true" />
+		<Message Importance="high" Text="STB2026.addin скопирован в $(RevitAddinsFolder)" />
+	</Target>
+</Project>

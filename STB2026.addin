@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RevitAddIns>
+  <AddIn Type="Application">
+    <Name>STB2026</Name>
+    <Assembly>E:\Sorted\Programms\STB2026\bin\Debug\net8.0-windows\STB2026.dll</Assembly>
+    <AddInId>E8F3B5A1-7C2D-4F6E-9A1B-3D5E7F8A2C4D</AddInId>
+    <FullClassName>STB2026.App</FullClassName>
+    <VendorId>STB2026</VendorId>
+    <VendorDescription>STB2026</VendorDescription>
+  </AddIn>
+</RevitAddIns>
