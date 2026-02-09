@@ -15,12 +15,12 @@ namespace STB2026.RevitBridge.Handlers
     ///   list_families        — список загруженных семейств (по категории)
     ///   load_family           — загрузить .rfa файл в проект
     ///   list_shared_params    — список общих параметров из ФОП (файла общих параметров)
-    ///   add_shared_param      — добавить общий параметр к категориям
-    ///   remove_shared_param   — удалить общий параметр из привязок
+    ///   add_shared_param      — добавить общий параметр к категориям проекта
+    ///   remove_shared_param   — удалить общий параметр из привязок проекта
     ///   list_family_types     — типоразмеры семейства
     ///   set_family_type_param — изменить параметр типоразмера
     ///   duplicate_type        — дублировать типоразмер
-    ///   edit_family           — открыть семейство, изменить параметры, загрузить обратно
+    ///   edit_family           — открыть семейство, изменить/добавить параметры (вкл. общие из ФОП), загрузить обратно
     /// </summary>
     internal static class FamilyHandler
     {
@@ -219,21 +219,21 @@ namespace STB2026.RevitBridge.Handlers
         }
 
         // ═══════════════════════════════════════════════════════════
-        //  add_shared_param — добавить общий параметр
+        //  add_shared_param — добавить общий параметр к категориям проекта
         // ═══════════════════════════════════════════════════════════
 
         /// <summary>
         /// data: {
         ///   "param_name": "ADSK_Расход",
-        ///   "group_name": "Группа в ФОП",      // группа в файле общих параметров
+        ///   "group_name": "Группа в ФОП",      // группа в файле общих параметров (по умолчанию "STB2026")
         ///   "categories": ["Воздуховоды", "Воздухораспределители"],
         ///   "is_instance": true,                // true=экземпляр, false=тип
-        ///   "param_group": "Механизмы"          // группа отображения в свойствах (необязательно)
+        ///   "param_group": "Механизмы"          // группа отображения в свойствах
         /// }
-        /// 
-        /// Если ФОП не подключён, подключаем временный.
+        /// Если ФОП не подключён, создаём временный.
         /// </summary>
-        private static object AddSharedParam(Document doc, Autodesk.Revit.ApplicationServices.Application app, JObject data)
+        private static object AddSharedParam(Document doc,
+            Autodesk.Revit.ApplicationServices.Application app, JObject data)
         {
             string paramName = data.Value<string>("param_name") ?? "";
             string groupName = data.Value<string>("group_name") ?? "STB2026";
@@ -301,22 +301,27 @@ namespace STB2026.RevitBridge.Handlers
                     options.Visible = true;
 
                     // Угадываем тип по имени
-                    if (paramName.Contains("Расход", StringComparison.OrdinalIgnoreCase))
+                    if (paramName.IndexOf("Расход", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                        paramName.IndexOf("AIRFLOW", StringComparison.OrdinalIgnoreCase) >= 0)
                         options = new ExternalDefinitionCreationOptions(paramName, SpecTypeId.AirFlow);
-                    else if (paramName.Contains("Скорость", StringComparison.OrdinalIgnoreCase))
+                    else if (paramName.IndexOf("Скорость", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                             paramName.IndexOf("VELOCITY", StringComparison.OrdinalIgnoreCase) >= 0)
                         options = new ExternalDefinitionCreationOptions(paramName, SpecTypeId.HvacVelocity);
-                    else if (paramName.Contains("Давлен", StringComparison.OrdinalIgnoreCase))
+                    else if (paramName.IndexOf("Давлен", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                             paramName.IndexOf("PRESSURE", StringComparison.OrdinalIgnoreCase) >= 0)
                         options = new ExternalDefinitionCreationOptions(paramName, SpecTypeId.HvacPressure);
-                    else if (paramName.Contains("Площад", StringComparison.OrdinalIgnoreCase))
+                    else if (paramName.IndexOf("Площад", StringComparison.OrdinalIgnoreCase) >= 0)
                         options = new ExternalDefinitionCreationOptions(paramName, SpecTypeId.Area);
-                    else if (paramName.Contains("Длин", StringComparison.OrdinalIgnoreCase) ||
-                             paramName.Contains("Высот", StringComparison.OrdinalIgnoreCase) ||
-                             paramName.Contains("Ширин", StringComparison.OrdinalIgnoreCase) ||
-                             paramName.Contains("Диаметр", StringComparison.OrdinalIgnoreCase))
+                    else if (paramName.IndexOf("Длин", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                             paramName.IndexOf("Высот", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                             paramName.IndexOf("Ширин", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                             paramName.IndexOf("Диаметр", StringComparison.OrdinalIgnoreCase) >= 0)
                         options = new ExternalDefinitionCreationOptions(paramName, SpecTypeId.Length);
-                    else if (paramName.Contains("Масс", StringComparison.OrdinalIgnoreCase))
+                    else if (paramName.IndexOf("Масс", StringComparison.OrdinalIgnoreCase) >= 0)
                         options = new ExternalDefinitionCreationOptions(paramName, SpecTypeId.Mass);
 
+                    options.UserModifiable = true;
+                    options.Visible = true;
                     extDef = defGroup.Definitions.Create(options) as ExternalDefinition;
                 }
 
@@ -350,7 +355,6 @@ namespace STB2026.RevitBridge.Handlers
                         ? (ElementBinding)doc.Application.Create.NewInstanceBinding(catSet)
                         : (ElementBinding)doc.Application.Create.NewTypeBinding(catSet);
 
-                    // Группа отображения
                     ForgeTypeId groupTypeId = GroupTypeId.General;
                     if (!string.IsNullOrWhiteSpace(paramGroupName))
                         groupTypeId = GuessGroupTypeId(paramGroupName);
@@ -503,17 +507,16 @@ namespace STB2026.RevitBridge.Handlers
             if (string.IsNullOrWhiteSpace(paramName))
                 return new { error = "Укажите param_name" };
 
-            var param = symbol.LookupParameter(paramName);
+            Parameter param = symbol.LookupParameter(paramName);
             if (param == null)
-                return new { error = $"Параметр '{paramName}' не найден в типоразмере '{symbol.Name}'" };
+                return new { error = $"Параметр '{paramName}' не найден у типоразмера '{symbol.Name}'" };
 
             if (param.IsReadOnly)
-                return new { error = $"Параметр '{paramName}' доступен только для чтения" };
+                return new { error = $"Параметр '{paramName}' только для чтения" };
 
             using (var trans = new Transaction(doc, $"STB2026: Set type param '{paramName}'"))
             {
                 trans.Start();
-
                 try
                 {
                     SetParamValue(param, paramValue);
@@ -531,7 +534,7 @@ namespace STB2026.RevitBridge.Handlers
                 catch (Exception ex)
                 {
                     trans.RollBack();
-                    return new { error = $"Ошибка установки параметра: {ex.Message}" };
+                    return new { error = $"Ошибка: {ex.Message}" };
                 }
             }
         }
@@ -541,8 +544,7 @@ namespace STB2026.RevitBridge.Handlers
         // ═══════════════════════════════════════════════════════════
 
         /// <summary>
-        /// data: { "type_id": 12345, "new_name": "Ф150" }
-        /// или: { "family_name": "...", "type_name": "Ф100", "new_name": "Ф150" }
+        /// data: { "family_name": "...", "type_name": "Ф100", "new_name": "Ф200" }
         /// </summary>
         private static object DuplicateType(Document doc, JObject data)
         {
@@ -580,17 +582,27 @@ namespace STB2026.RevitBridge.Handlers
 
         // ═══════════════════════════════════════════════════════════
         //  edit_family — редактирование семейства
+        //  Поддерживает добавление общих параметров из ФОП (is_shared)
         // ═══════════════════════════════════════════════════════════
 
         /// <summary>
-        /// Открывает семейство для редактирования, меняет параметры, загружает обратно.
+        /// Открывает семейство для редактирования, добавляет/изменяет параметры, загружает обратно.
         /// data: {
         ///   "family_name": "ADSK_Диффузор_Круглый_Приточный",
         ///   "params": [
-        ///     { "name": "ОВ_Расход_Номинальный", "value": "500", "is_instance": true },
+        ///     { "name": "LIN_VE_PRESSURE_LOSS", "is_instance": true, "is_shared": true, "group": "Механизмы\u00A0— расход" },
+        ///     { "name": "CustomParam", "value": "500", "is_instance": true },
         ///     { "name": "Описание", "value": "Приточный диффузор" }
         ///   ]
         /// }
+        /// 
+        /// Параметры каждого элемента массива params:
+        ///   name        — имя параметра (обязательно)
+        ///   value       — значение (необязательно)
+        ///   is_instance — true=экземпляр, false=тип (по умолчанию true)
+        ///   is_shared   — true=искать в ФОП как общий параметр (по умолчанию false)
+        ///   group       — группа отображения: "Механизмы", "Механизмы— расход", "Данные" и т.д.
+        ///   spec_type   — тип данных для НЕобщих параметров: "text","length","airflow","pressure" и т.д.
         /// </summary>
         private static object EditFamily(Document doc, UIApplication uiApp, JObject data)
         {
@@ -603,33 +615,84 @@ namespace STB2026.RevitBridge.Handlers
 
             var paramsArr = data["params"] as JArray;
             if (paramsArr == null || paramsArr.Count == 0)
-                return new { error = "Укажите params — массив параметров для изменения" };
+                return new { error = "Укажите params — массив параметров для изменения/добавления" };
 
-            // Открываем документ семейства
-            Document famDoc = doc.EditFamily(family);
-            if (famDoc == null)
-                return new { error = "Не удалось открыть документ семейства" };
+            // ═══ Подход через временный .rfa файл ═══
+            // doc.EditFamily() создаёт in-memory документ, в котором ExternalDefinition
+            // из ФОП становится невалидным. Поэтому:
+            // 1. EditFamily → получаем famDoc
+            // 2. Сохраняем famDoc во временный .rfa
+            // 3. Закрываем famDoc
+            // 4. Открываем .rfa через Application.OpenDocumentFile()
+            // 5. Добавляем параметры (ExternalDefinition валиден в этом контексте)
+            // 6. Сохраняем .rfa
+            // 7. Закрываем .rfa
+            // 8. Загружаем в проект через doc.LoadFamily(path)
+
+            // Временный .rfa — ВАЖНО: имя файла ДОЛЖНО совпадать с именем семейства,
+            // иначе doc.LoadFamily() создаст НОВОЕ семейство вместо перезаписи
+            string tempDir = Path.Combine(Path.GetTempPath(), "STB2026_Families");
+            if (!Directory.Exists(tempDir)) Directory.CreateDirectory(tempDir);
+            string tempRfaPath = Path.Combine(tempDir, $"{family.Name}.rfa");
+
+            Document famDoc = null;
+            Document openedFamDoc = null;
 
             try
             {
-                var famMgr = famDoc.FamilyManager;
+                // ═══ Шаг 1-3: Получаем .rfa на диск ═══
+                famDoc = doc.EditFamily(family);
+                if (famDoc == null)
+                    return new { error = "Не удалось открыть документ семейства" };
+
+                var saveOpts = new SaveAsOptions { OverwriteExistingFile = true };
+                famDoc.SaveAs(tempRfaPath, saveOpts);
+                famDoc.Close(false);
+                famDoc = null;
+
+                // ═══ Шаг 4: Открываем .rfa как обычный документ ═══
+                openedFamDoc = uiApp.Application.OpenDocumentFile(tempRfaPath);
+                if (openedFamDoc == null)
+                    return new { error = "Не удалось открыть временный .rfa файл" };
+
+                var famMgr = openedFamDoc.FamilyManager;
                 int changed = 0;
                 int added = 0;
                 var errors = new List<string>();
+                var addedParams = new List<object>();
 
-                using (var trans = new Transaction(famDoc, "STB2026: Edit Family"))
+                // ═══ Шаг 5: Добавляем/изменяем параметры ═══
+                using (var trans = new Transaction(openedFamDoc, "STB2026: Edit Family"))
                 {
                     trans.Start();
+
+                    // Убедимся что есть хотя бы один тип
+                    if (famMgr.CurrentType == null)
+                    {
+                        if (famMgr.Types.Size == 0)
+                        {
+                            famMgr.NewType("Default");
+                        }
+                        else
+                        {
+                            var enumerator = famMgr.Types.ForwardIterator();
+                            enumerator.MoveNext();
+                            famMgr.CurrentType = enumerator.Current as FamilyType;
+                        }
+                    }
 
                     foreach (var paramToken in paramsArr)
                     {
                         string pName = paramToken.Value<string>("name") ?? "";
                         string pValue = paramToken.Value<string>("value") ?? "";
                         bool pInstance = paramToken.Value<bool?>("is_instance") ?? true;
+                        bool pShared = paramToken.Value<bool?>("is_shared") ?? false;
+                        string pGroup = paramToken.Value<string>("group") ?? "";
+                        string pSpecType = paramToken.Value<string>("spec_type") ?? "";
 
                         if (string.IsNullOrWhiteSpace(pName)) continue;
 
-                        // Ищем параметр
+                        // Ищем существующий параметр в семействе
                         FamilyParameter famParam = null;
                         foreach (FamilyParameter fp in famMgr.Parameters)
                         {
@@ -640,36 +703,128 @@ namespace STB2026.RevitBridge.Handlers
                             }
                         }
 
-                        // Если параметра нет — создаём
-                        if (famParam == null)
+                        // Если параметр уже существует — только меняем значение
+                        if (famParam != null)
                         {
+                            if (!string.IsNullOrWhiteSpace(pValue))
+                            {
+                                try
+                                {
+                                    SetFamilyParamValue(famMgr, famParam, pValue);
+                                    changed++;
+                                }
+                                catch (Exception ex)
+                                {
+                                    errors.Add($"'{pName}': ошибка установки значения: {ex.Message}");
+                                }
+                            }
+                            else
+                            {
+                                errors.Add($"'{pName}': параметр уже существует в семействе");
+                            }
+                            continue;
+                        }
+
+                        // === Параметра нет — создаём ===
+
+                        ForgeTypeId groupId = string.IsNullOrWhiteSpace(pGroup)
+                            ? GroupTypeId.General
+                            : GuessGroupTypeId(pGroup);
+
+                        if (pShared)
+                        {
+                            // ─── Добавление ОБЩЕГО параметра из ФОП ───
                             try
                             {
-                                famParam = famMgr.AddParameter(
-                                    pName,
-                                    GroupTypeId.General,
-                                    SpecTypeId.String.Text,
-                                    pInstance);
-                                added++;
+                                // В контексте отдельно открытого .rfa ExternalDefinition валиден
+                                ExternalDefinition extDef = FindSharedParamDefinition(
+                                    uiApp.Application, pName);
+
+                                if (extDef == null)
+                                {
+                                    errors.Add($"'{pName}': не найден в файле общих параметров (ФОП). " +
+                                               "Проверьте, что ФОП подключён и параметр существует.");
+                                    continue;
+                                }
+
+                                string dataType = "unknown";
+                                try { dataType = extDef.GetDataType()?.TypeId ?? "unknown"; } catch { }
+
+                                famParam = famMgr.AddParameter(extDef, groupId, pInstance);
+
+                                if (famParam != null)
+                                {
+                                    added++;
+                                    addedParams.Add(new
+                                    {
+                                        name = pName,
+                                        type = "shared",
+                                        is_instance = pInstance,
+                                        group = GetGroupLabel(groupId),
+                                        data_type = dataType
+                                    });
+
+                                    if (!string.IsNullOrWhiteSpace(pValue))
+                                    {
+                                        try
+                                        {
+                                            SetFamilyParamValue(famMgr, famParam, pValue);
+                                            changed++;
+                                        }
+                                        catch (Exception ex)
+                                        {
+                                            errors.Add($"'{pName}': добавлен, но ошибка значения: {ex.Message}");
+                                        }
+                                    }
+                                }
+                                else
+                                {
+                                    errors.Add($"'{pName}': FamilyManager.AddParameter вернул null");
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                errors.Add($"'{pName}': ошибка добавления общего параметра: {ex.Message}");
+                            }
+                        }
+                        else
+                        {
+                            // ─── Добавление обычного параметра семейства ───
+                            try
+                            {
+                                ForgeTypeId specTypeId = GuessSpecTypeId(pSpecType, pName);
+
+                                famParam = famMgr.AddParameter(pName, groupId, specTypeId, pInstance);
+
+                                if (famParam != null)
+                                {
+                                    added++;
+                                    addedParams.Add(new
+                                    {
+                                        name = pName,
+                                        type = "family",
+                                        is_instance = pInstance,
+                                        group = GetGroupLabel(groupId),
+                                        data_type = specTypeId?.TypeId ?? "text"
+                                    });
+
+                                    if (!string.IsNullOrWhiteSpace(pValue))
+                                    {
+                                        try
+                                        {
+                                            SetFamilyParamValue(famMgr, famParam, pValue);
+                                            changed++;
+                                        }
+                                        catch (Exception ex)
+                                        {
+                                            errors.Add($"'{pName}': добавлен, но ошибка значения: {ex.Message}");
+                                        }
+                                    }
+                                }
                             }
                             catch (Exception ex)
                             {
                                 errors.Add($"'{pName}': не удалось создать: {ex.Message}");
-                                continue;
-                            }
-                        }
-
-                        // Устанавливаем значение
-                        if (!string.IsNullOrWhiteSpace(pValue))
-                        {
-                            try
-                            {
-                                SetFamilyParamValue(famMgr, famParam, pValue);
-                                changed++;
-                            }
-                            catch (Exception ex)
-                            {
-                                errors.Add($"'{pName}': {ex.Message}");
                             }
                         }
                     }
@@ -677,11 +832,20 @@ namespace STB2026.RevitBridge.Handlers
                     trans.Commit();
                 }
 
-                // Загружаем обратно в проект
-                var loadOptions = new FamilyLoadOptions();
-                Family reloaded = famDoc.LoadFamily(doc, loadOptions);
+                // ═══ Шаг 6-7: Сохраняем и закрываем .rfa ═══
+                openedFamDoc.Save();
+                openedFamDoc.Close(false);
+                openedFamDoc = null;
 
-                famDoc.Close(false);
+                // ═══ Шаг 8: Загружаем обновлённое семейство в проект ═══
+                Family reloadedFamily = null;
+                using (var trans = new Transaction(doc, "STB2026: Reload Family"))
+                {
+                    trans.Start();
+                    var loadOpts = new FamilyLoadOptions();
+                    doc.LoadFamily(tempRfaPath, loadOpts, out reloadedFamily);
+                    trans.Commit();
+                }
 
                 return new
                 {
@@ -689,14 +853,21 @@ namespace STB2026.RevitBridge.Handlers
                     family_name = family.Name,
                     params_changed = changed,
                     params_added = added,
-                    reloaded = reloaded != null,
+                    added_params = addedParams,
+                    reloaded = reloadedFamily != null,
                     errors
                 };
             }
             catch (Exception ex)
             {
-                try { famDoc.Close(false); } catch { }
+                try { if (famDoc != null) famDoc.Close(false); } catch { }
+                try { if (openedFamDoc != null) openedFamDoc.Close(false); } catch { }
                 return new { error = $"Ошибка редактирования семейства: {ex.Message}" };
+            }
+            finally
+            {
+                // Удаляем временный файл
+                try { if (File.Exists(tempRfaPath)) File.Delete(tempRfaPath); } catch { }
             }
         }
 
@@ -704,6 +875,7 @@ namespace STB2026.RevitBridge.Handlers
         //  Вспомогательные методы
         // ═══════════════════════════════════════════════════════════
 
+        /// <summary>Ищет семейство по ID или имени.</summary>
         private static Family FindFamily(Document doc, JObject data)
         {
             int? familyId = data.Value<int?>("family_id");
@@ -725,6 +897,7 @@ namespace STB2026.RevitBridge.Handlers
             return null;
         }
 
+        /// <summary>Ищет FamilySymbol по type_id или family_name+type_name.</summary>
         private static FamilySymbol FindFamilySymbol(Document doc, JObject data)
         {
             int? typeId = data.Value<int?>("type_id");
@@ -746,6 +919,7 @@ namespace STB2026.RevitBridge.Handlers
                      s.Name.IndexOf(typeName, StringComparison.OrdinalIgnoreCase) >= 0));
         }
 
+        /// <summary>Ищет категорию по имени (частичное совпадение).</summary>
         private static Category FindCategory(Document doc, string name)
         {
             foreach (Category c in doc.Settings.Categories)
@@ -756,6 +930,7 @@ namespace STB2026.RevitBridge.Handlers
             return null;
         }
 
+        /// <summary>Ищет существующую привязку параметра по имени.</summary>
         private static ElementBinding FindExistingBinding(Document doc, string paramName)
         {
             var iterator = doc.ParameterBindings.ForwardIterator();
@@ -767,6 +942,7 @@ namespace STB2026.RevitBridge.Handlers
             return null;
         }
 
+        /// <summary>Возвращает список категорий из привязки.</summary>
         private static List<string> GetBindingCategories(ElementBinding binding)
         {
             CategorySet cats = null;
@@ -780,6 +956,7 @@ namespace STB2026.RevitBridge.Handlers
             return result;
         }
 
+        /// <summary>Возвращает имя группы параметра.</summary>
         private static string GetParamGroup(Definition def)
         {
             try
@@ -790,24 +967,203 @@ namespace STB2026.RevitBridge.Handlers
             catch { return "Прочее"; }
         }
 
+        /// <summary>
+        /// Ищет ExternalDefinition по имени во всех группах текущего файла общих параметров.
+        /// Если ФОП не подключён — пытается найти его по стандартным путям.
+        /// </summary>
+        private static ExternalDefinition FindSharedParamDefinition(
+            Autodesk.Revit.ApplicationServices.Application app, string paramName)
+        {
+            DefinitionFile defFile = app.OpenSharedParameterFile();
+
+            if (defFile == null)
+            {
+                // Пробуем найти ФОП по стандартным путям
+                string[] defaultPaths = new[]
+                {
+                    Path.Combine(
+                        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                        "Autodesk", "Revit", "SharedParams.txt"),
+                    @"C:\ProgramData\Autodesk\Revit\SharedParams.txt",
+                    Path.Combine(
+                        Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
+                        "ADSK_Shared_Parameters.txt"),
+                    Path.Combine(
+                        Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
+                        "SharedParams.txt")
+                };
+
+                foreach (var path in defaultPaths)
+                {
+                    if (File.Exists(path))
+                    {
+                        try
+                        {
+                            app.SharedParametersFilename = path;
+                            defFile = app.OpenSharedParameterFile();
+                            if (defFile != null) break;
+                        }
+                        catch { /* пробуем следующий */ }
+                    }
+                }
+            }
+
+            if (defFile == null)
+                return null;
+
+            // Ищем параметр во всех группах
+            foreach (DefinitionGroup group in defFile.Groups)
+            {
+                foreach (Definition def in group.Definitions)
+                {
+                    if (def.Name == paramName && def is ExternalDefinition extDef)
+                        return extDef;
+                }
+            }
+
+            return null;
+        }
+
+        /// <summary>Определяет группу отображения параметра по текстовому имени.</summary>
         private static ForgeTypeId GuessGroupTypeId(string groupName)
         {
+            if (string.IsNullOrWhiteSpace(groupName))
+                return GroupTypeId.General;
+
             string lower = groupName.ToLowerInvariant();
 
+            // "Механизмы — расход" / "Механизмы\u00A0— расход" (с неразрывным пробелом)
+            if (lower.Contains("механ") && (lower.Contains("расход") || lower.Contains("flow")))
+                return GroupTypeId.MechanicalAirflow;
+
+            // "Механизмы — нагрузки"
+            if (lower.Contains("механ") && (lower.Contains("нагрузк") || lower.Contains("load")))
+                return GroupTypeId.MechanicalLoads;
+
+            // "Механизмы" (общее)
             if (lower.Contains("механ") || lower.Contains("hvac") || lower.Contains("mech"))
                 return GroupTypeId.Mechanical;
-            if (lower.Contains("разм") || lower.Contains("dimen"))
+
+            if (lower.Contains("разм") || lower.Contains("dimen") || lower.Contains("geom"))
                 return GroupTypeId.Geometry;
+
             if (lower.Contains("идентиф") || lower.Contains("ident"))
                 return GroupTypeId.IdentityData;
+
             if (lower.Contains("данн") || lower.Contains("data"))
                 return GroupTypeId.Data;
+
             if (lower.Contains("завис") || lower.Contains("constr"))
                 return GroupTypeId.Constraints;
+
+            if (lower.Contains("строит") || lower.Contains("construct"))
+                return GroupTypeId.Construction;
+
+            if (lower.Contains("текст") || lower.Contains("text"))
+                return GroupTypeId.Text;
+
+            if (lower.Contains("общ") || lower.Contains("general"))
+                return GroupTypeId.General;
+
+            if (lower.Contains("электр") || lower.Contains("electr"))
+                return GroupTypeId.Electrical;
+
+            if (lower.Contains("сантех") || lower.Contains("plumb"))
+                return GroupTypeId.Plumbing;
+
+            if (lower.Contains("ifc"))
+                return GroupTypeId.Ifc;
 
             return GroupTypeId.General;
         }
 
+        /// <summary>Определяет тип данных параметра по явному указанию или по имени.</summary>
+        private static ForgeTypeId GuessSpecTypeId(string specType, string paramName)
+        {
+            // Если явно указан тип
+            if (!string.IsNullOrWhiteSpace(specType))
+            {
+                switch (specType.ToLowerInvariant())
+                {
+                    case "text":
+                    case "string":
+                        return SpecTypeId.String.Text;
+                    case "length":
+                        return SpecTypeId.Length;
+                    case "area":
+                        return SpecTypeId.Area;
+                    case "volume":
+                        return SpecTypeId.Volume;
+                    case "airflow":
+                    case "air_flow":
+                        return SpecTypeId.AirFlow;
+                    case "pressure":
+                    case "hvac_pressure":
+                        return SpecTypeId.HvacPressure;
+                    case "velocity":
+                    case "hvac_velocity":
+                        return SpecTypeId.HvacVelocity;
+                    case "number":
+                    case "real":
+                        return SpecTypeId.Number;
+                    case "integer":
+                    case "int":
+                        return SpecTypeId.Int.Integer;
+                    case "yesno":
+                    case "bool":
+                        return SpecTypeId.Boolean.YesNo;
+                    case "angle":
+                        return SpecTypeId.Angle;
+                    case "mass":
+                        return SpecTypeId.Mass;
+                    case "temperature":
+                        return SpecTypeId.HvacTemperature;
+                    case "power":
+                        return SpecTypeId.HvacPower;
+                }
+            }
+
+            // Угадываем по имени параметра
+            string lower = paramName.ToLowerInvariant();
+
+            if (lower.Contains("расход") || lower.Contains("airflow") || lower.Contains("air_flow"))
+                return SpecTypeId.AirFlow;
+            if (lower.Contains("давлен") || lower.Contains("pressure"))
+                return SpecTypeId.HvacPressure;
+            if (lower.Contains("скорост") || lower.Contains("velocity"))
+                return SpecTypeId.HvacVelocity;
+            if (lower.Contains("площад") || lower.Contains("area"))
+                return SpecTypeId.Area;
+            if (lower.Contains("длин") || lower.Contains("высот") || lower.Contains("ширин") ||
+                lower.Contains("диаметр") || lower.Contains("length") || lower.Contains("height") ||
+                lower.Contains("width") || lower.Contains("diameter"))
+                return SpecTypeId.Length;
+            if (lower.Contains("масс") || lower.Contains("mass") || lower.Contains("weight"))
+                return SpecTypeId.Mass;
+            if (lower.Contains("температур") || lower.Contains("temperature"))
+                return SpecTypeId.HvacTemperature;
+            if (lower.Contains("мощност") || lower.Contains("power"))
+                return SpecTypeId.HvacPower;
+            if (lower.Contains("объём") || lower.Contains("объем") || lower.Contains("volume"))
+                return SpecTypeId.Volume;
+
+            return SpecTypeId.String.Text;
+        }
+
+        /// <summary>Получает читаемое имя группы параметров.</summary>
+        private static string GetGroupLabel(ForgeTypeId groupId)
+        {
+            try
+            {
+                return LabelUtils.GetLabelForGroup(groupId);
+            }
+            catch
+            {
+                return groupId?.TypeId ?? "Прочее";
+            }
+        }
+
+        /// <summary>Устанавливает значение параметра элемента.</summary>
         private static void SetParamValue(Parameter param, string value)
         {
             switch (param.StorageType)
@@ -829,6 +1185,7 @@ namespace STB2026.RevitBridge.Handlers
             }
         }
 
+        /// <summary>Устанавливает значение параметра семейства через FamilyManager.</summary>
         private static void SetFamilyParamValue(FamilyManager mgr, FamilyParameter param, string value)
         {
             switch (param.StorageType)
@@ -857,7 +1214,7 @@ namespace STB2026.RevitBridge.Handlers
             public bool OnFamilyFound(bool familyInUse, out bool overwriteParameterValues)
             {
                 overwriteParameterValues = true;
-                return true; // Перезаписать
+                return true;
             }
 
             public bool OnSharedFamilyFound(Family sharedFamily, bool familyInUse,

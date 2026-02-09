@@ -15,13 +15,13 @@ namespace STB2026.RevitBridge
     /// 2. HVAC инструменты (кнопки на ribbon)
     /// 
     /// Все на одной вкладке "STB2026":
-    /// ┌──────────────────────────────────────────────────────────────┐
-    /// │  Оформление  │  Проверки  │  Расчёты  │  AI Connector      │
-    /// │  Маркировка  │  Скорости  │  Пересеч. │  A.I. Connector    │
-    /// │  воздухов.   │  Валидация │  со стен. │                    │
-    /// │              │  Сбросить  │           │                    │
-    /// │              │  цвета     │           │                    │
-    /// └──────────────────────────────────────────────────────────────┘
+    /// ┌──────────────────────────────────────────────────────────────────────┐
+    /// │  Оформление  │  Проверки  │  Расчёты  │  Семейства │ AI Connector  │
+    /// │  Маркировка  │  Скорости  │  Пересеч. │  Параметры │ A.I.         │
+    /// │  воздухов.   │  Валидация │  со стен. │  ФОП       │ Connector    │
+    /// │              │  Сбросить  │           │            │              │
+    /// │              │  цвета     │           │            │              │
+    /// └──────────────────────────────────────────────────────────────────────┘
     /// </summary>
     public class BridgeApp : IExternalApplication
     {
@@ -51,7 +51,12 @@ namespace STB2026.RevitBridge
                 CreateHvacPanels(application, assemblyPath);
 
                 // ═══════════════════════════════════════
-                // 3. MCP Bridge (AI Connector)
+                // 3. Панель Семейства
+                // ═══════════════════════════════════════
+                CreateFamilyPanels(application, assemblyPath);
+
+                // ═══════════════════════════════════════
+                // 4. MCP Bridge (AI Connector)
                 // ═══════════════════════════════════════
                 InitializeMcpBridge(application, assemblyPath);
 
@@ -133,6 +138,41 @@ namespace STB2026.RevitBridge
             );
             btnWallInt.ToolTip = "Поиск пересечений воздуховодов со стенами\n(включая связанные файлы) и координатный отчёт";
             panelCalc.AddItem(btnWallInt);
+        }
+
+        // ═══════════════════════════════════════════════════════════
+        //  Панель Семейства
+        // ═══════════════════════════════════════════════════════════
+
+        private void CreateFamilyPanels(UIControlledApplication app, string assemblyPath)
+        {
+            try
+            {
+                RibbonPanel panelFamilies = app.CreateRibbonPanel("STB2026", "Семейства");
+
+                var btnSharedParam = new PushButtonData(
+                    "cmdAddSharedParam",
+                    "Параметры\nФОП",
+                    assemblyPath,
+                    "STB2026.RevitBridge.Commands.AddSharedParamCommand"
+                );
+                btnSharedParam.ToolTip = "Добавить общий параметр из ФОП в семейство";
+                btnSharedParam.LongDescription =
+                    "Открывает окно для добавления общих параметров\n" +
+                    "из файла общих параметров (ФОП) непосредственно\n" +
+                    "в редактор семейства.\n\n" +
+                    "• Выбор семейства из проекта\n" +
+                    "• Выбор параметра из любой группы ФОП\n" +
+                    "• Настройка привязки (экземпляр/тип)\n" +
+                    "• Выбор группы отображения в свойствах\n" +
+                    "• Связывание с параметром семейства формулой";
+
+                panelFamilies.AddItem(btnSharedParam);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[STB2026] Не удалось создать панель Семейства: {ex.Message}");
+            }
         }
 
         // ═══════════════════════════════════════════════════════════

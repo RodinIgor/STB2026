@@ -1,0 +1,134 @@
+<Window x:Class="STB2026.RevitBridge.UI.AddSharedParamWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Добавить параметр ФОП в семейство"
+        Width="620" Height="540"
+        WindowStartupLocation="CenterScreen"
+        ResizeMode="NoResize"
+        Background="#F5F5F5">
+
+    <Window.Resources>
+        <Style x:Key="LabelStyle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Margin" Value="0,8,0,4"/>
+            <Setter Property="Foreground" Value="#333"/>
+        </Style>
+        <Style x:Key="ComboStyle" TargetType="ComboBox">
+            <Setter Property="Height" Value="28"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Padding" Value="6,4"/>
+        </Style>
+        <Style x:Key="InfoStyle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="Foreground" Value="#666"/>
+            <Setter Property="Margin" Value="0,2,0,0"/>
+        </Style>
+    </Window.Resources>
+
+    <Grid Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Заголовок -->
+        <StackPanel Grid.Row="0" Margin="0,0,0,12">
+            <TextBlock Text="Добавление общего параметра в семейство"
+                       FontSize="15" FontWeight="Bold" Foreground="#1a1a2e"/>
+            <TextBlock Text="Параметр из ФОП будет добавлен непосредственно в редактор семейства"
+                       FontSize="11" Foreground="#888" Margin="0,4,0,0"/>
+        </StackPanel>
+
+        <!-- Семейство -->
+        <StackPanel Grid.Row="1">
+            <TextBlock Text="Семейство" Style="{StaticResource LabelStyle}"/>
+            <ComboBox x:Name="cmbFamily" Style="{StaticResource ComboStyle}"
+                      SelectionChanged="CmbFamily_SelectionChanged"
+                      IsEditable="True" IsTextSearchEnabled="True"/>
+        </StackPanel>
+
+        <!-- Группа ФОП -->
+        <StackPanel Grid.Row="2">
+            <TextBlock Text="Группа ФОП" Style="{StaticResource LabelStyle}"/>
+            <ComboBox x:Name="cmbSpfGroup" Style="{StaticResource ComboStyle}"
+                      SelectionChanged="CmbSpfGroup_SelectionChanged"/>
+        </StackPanel>
+
+        <!-- Параметр ФОП -->
+        <StackPanel Grid.Row="3">
+            <TextBlock Text="Параметр ФОП" Style="{StaticResource LabelStyle}"/>
+            <ComboBox x:Name="cmbParam" Style="{StaticResource ComboStyle}"
+                      SelectionChanged="CmbParam_SelectionChanged"
+                      IsEditable="True" IsTextSearchEnabled="True"/>
+        </StackPanel>
+
+        <!-- Инфо -->
+        <Border Grid.Row="4" Background="#EEF2FF" CornerRadius="4"
+                Padding="10,6" Margin="0,6,0,0"
+                x:Name="pnlParamInfo" Visibility="Collapsed">
+            <TextBlock x:Name="txtParamInfo" Style="{StaticResource InfoStyle}" TextWrapping="Wrap"/>
+        </Border>
+
+        <!-- Тип / Экземпляр -->
+        <StackPanel Grid.Row="5">
+            <TextBlock Text="Привязка" Style="{StaticResource LabelStyle}"/>
+            <StackPanel Orientation="Horizontal">
+                <RadioButton x:Name="rbInstance" Content="Экземпляр"
+                             IsChecked="True" Margin="0,0,20,0" FontSize="12"/>
+                <RadioButton x:Name="rbType" Content="Тип" FontSize="12"/>
+            </StackPanel>
+        </StackPanel>
+
+        <!-- Группа отображения -->
+        <StackPanel Grid.Row="6">
+            <TextBlock Text="Группа отображения в свойствах" Style="{StaticResource LabelStyle}"/>
+            <ComboBox x:Name="cmbDisplayGroup" Style="{StaticResource ComboStyle}"
+                      IsEditable="True"/>
+        </StackPanel>
+
+        <!-- Связать с -->
+        <StackPanel Grid.Row="7">
+            <TextBlock Style="{StaticResource LabelStyle}">
+                <Run Text="Связать с параметром семейства"/>
+                <Run Text="(необязательно)" Foreground="#999" FontWeight="Normal" FontSize="10"/>
+            </TextBlock>
+            <ComboBox x:Name="cmbLinkParam" Style="{StaticResource ComboStyle}"/>
+            <TextBlock Text="Если выбран — значение общего параметра будет вычисляться формулой из параметра семейства"
+                       Style="{StaticResource InfoStyle}" TextWrapping="Wrap"/>
+        </StackPanel>
+
+        <!-- Кнопки -->
+        <StackPanel Grid.Row="9" Orientation="Horizontal"
+                    HorizontalAlignment="Right" Margin="0,16,0,0">
+            <Button x:Name="btnAdd" Content="Добавить" Width="120" Height="32"
+                    FontSize="12" FontWeight="SemiBold"
+                    Background="#2563EB" Foreground="White"
+                    BorderThickness="0" Cursor="Hand"
+                    Click="BtnAdd_Click" IsEnabled="False">
+                <Button.Resources>
+                    <Style TargetType="Border">
+                        <Setter Property="CornerRadius" Value="4"/>
+                    </Style>
+                </Button.Resources>
+            </Button>
+            <Button Content="Закрыть" Width="90" Height="32"
+                    FontSize="12" Margin="8,0,0,0"
+                    Click="BtnClose_Click">
+                <Button.Resources>
+                    <Style TargetType="Border">
+                        <Setter Property="CornerRadius" Value="4"/>
+                    </Style>
+                </Button.Resources>
+            </Button>
+        </StackPanel>
+    </Grid>
+</Window>
