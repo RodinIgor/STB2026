@@ -14,9 +14,10 @@ namespace STB2026.RevitBridge.UI
         private readonly UIApplication _uiApp;
         private readonly Document _doc;
 
-        private List<FamilyInfo> _families = new List<FamilyInfo>();
         private List<SpfGroupInfo> _spfGroups = new List<SpfGroupInfo>();
         private List<SpfParamInfo> _spfParams = new List<SpfParamInfo>();
+        private List<CategoryInfo> _categories = new List<CategoryInfo>();
+        private List<FamilyCheckItem> _familyCheckItems = new List<FamilyCheckItem>();
         private List<string> _familyParams = new List<string>();
 
         public AddSharedParamWindow(UIApplication uiApp)
@@ -24,33 +25,14 @@ namespace STB2026.RevitBridge.UI
             InitializeComponent();
             _uiApp = uiApp;
             _doc = uiApp.ActiveUIDocument.Document;
-            LoadFamilies();
             LoadSpfGroups();
+            LoadCategories();
             LoadDisplayGroups();
         }
 
         // ═══════════════════════════════════════════════════════════
         //  Загрузка данных
         // ═══════════════════════════════════════════════════════════
-
-        private void LoadFamilies()
-        {
-            _families = new FilteredElementCollector(_doc)
-                .OfClass(typeof(Family))
-                .Cast<Family>()
-                .Where(f => !f.IsInPlace && f.IsEditable)
-                .Select(f => new FamilyInfo
-                {
-                    Family = f,
-                    DisplayName = $"{f.Name}  [{f.FamilyCategory?.Name ?? "—"}]"
-                })
-                .OrderBy(f => f.Family.FamilyCategory?.Name ?? "")
-                .ThenBy(f => f.Family.Name)
-                .ToList();
-
-            cmbFamily.ItemsSource = _families;
-            cmbFamily.DisplayMemberPath = "DisplayName";
-        }
 
         private void LoadSpfGroups()
         {
@@ -82,29 +64,102 @@ namespace STB2026.RevitBridge.UI
             cmbSpfGroup.DisplayMemberPath = "DisplayText";
         }
 
+        private void LoadCategories()
+        {
+            _categories.Clear();
+
+            // Собираем все категории, в которых есть загруженные семейства
+            var familyCategories = new FilteredElementCollector(_doc)
+                .OfClass(typeof(Family))
+                .Cast<Family>()
+                .Where(f => f.FamilyCategory != null && !f.IsInPlace && f.IsEditable)
+                .Select(f => f.FamilyCategory)
+                .GroupBy(c => c.Id.Value)
+                .Select(g => g.First())
+                .OrderBy(c => c.Name);
+
+            foreach (var cat in familyCategories)
+            {
+                _categories.Add(new CategoryInfo
+                {
+                    BuiltIn = (BuiltInCategory)cat.Id.Value,
+                    Category = cat,
+                    DisplayName = cat.Name
+                });
+            }
+
+            cmbCategory.ItemsSource = _categories;
+            cmbCategory.DisplayMemberPath = "DisplayName";
+        }
+
         private void LoadDisplayGroups()
         {
             var groups = new List<string>
             {
-                "Общие",
-                "Данные",
-                "Идентификация",
-                "Размеры",
-                "Зависимости",
-                "Строительство",
-                "Механизмы",
-                "Механизмы\u00A0— расход",
-                "Механизмы\u00A0— нагрузки",
-                "Электросети",
-                "Сантехника",
-                "Текст",
-                "IFC-параметры"
+                "Общие", "Данные", "Идентификация", "Размеры",
+                "Зависимости", "Строительство", "Механизмы",
+                "Механизмы\u00A0— расход", "Механизмы\u00A0— нагрузки",
+                "Электросети", "Сантехника", "Текст", "IFC-параметры"
             };
             cmbDisplayGroup.ItemsSource = groups;
             cmbDisplayGroup.SelectedIndex = 0;
         }
 
-        private void LoadFamilyParameters(Family family)
+        private void LoadFamiliesByCategory(BuiltInCategory bic)
+        {
+            _familyCheckItems.Clear();
+            pnlFamilies.Children.Clear();
+
+            var families = new FilteredElementCollector(_doc)
+                .OfClass(typeof(Family))
+                .Cast<Family>()
+                .Where(f => f.FamilyCategory != null
+                    && (BuiltInCategory)f.FamilyCategory.Id.Value == bic
+                    && f.IsEditable && !f.IsInPlace)
+                .OrderBy(f => f.Name)
+                .ToList();
+
+            foreach (var fam in families)
+            {
+                var item = new FamilyCheckItem
+                {
+                    FamilyName = fam.Name,
+                    FamilyId = fam.Id.Value,
+                    IsChecked = false
+                };
+
+                var cb = new CheckBox
+                {
+                    Content = fam.Name,
+                    Tag = item,
+                    FontSize = 12,
+                    Margin = new Thickness(4, 2, 4, 2),
+                    IsChecked = chkAllFamilies.IsChecked == true
+                };
+                cb.Checked += FamilyCb_Changed;
+                cb.Unchecked += FamilyCb_Changed;
+
+                item.IsChecked = chkAllFamilies.IsChecked == true;
+                item.CheckBox = cb;
+                _familyCheckItems.Add(item);
+                pnlFamilies.Children.Add(cb);
+            }
+
+            // Загружаем параметры первого семейства для связки
+            if (families.Count > 0)
+                LoadFamilyParamsForLink(families[0]);
+            else
+            {
+                _familyParams.Clear();
+                _familyParams.Add("(не связывать)");
+                cmbLinkParam.ItemsSource = _familyParams;
+                cmbLinkParam.SelectedIndex = 0;
+            }
+
+            UpdateAddButton();
+        }
+
+        private void LoadFamilyParamsForLink(Family family)
         {
             _familyParams.Clear();
             _familyParams.Add("(не связывать)");
@@ -114,15 +169,18 @@ namespace STB2026.RevitBridge.UI
                 if (famDoc != null)
                 {
                     var famMgr = famDoc.FamilyManager;
+                    var sorted = new List<string>();
                     foreach (FamilyParameter fp in famMgr.Parameters)
                     {
                         if (fp?.Definition?.Name != null)
                         {
                             string suffix = fp.IsInstance ? " [экз]" : " [тип]";
                             string storage = fp.StorageType.ToString();
-                            _familyParams.Add($"{fp.Definition.Name}{suffix}  ({storage})");
+                            sorted.Add($"{fp.Definition.Name}{suffix}  ({storage})");
                         }
                     }
+                    sorted.Sort();
+                    _familyParams.AddRange(sorted);
                     famDoc.Close(false);
                 }
             }
@@ -135,13 +193,6 @@ namespace STB2026.RevitBridge.UI
         // ═══════════════════════════════════════════════════════════
         //  Обработчики UI
         // ═══════════════════════════════════════════════════════════
-
-        private void CmbFamily_SelectionChanged(object sender, SelectionChangedEventArgs e)
-        {
-            if (cmbFamily.SelectedItem is FamilyInfo fi)
-                LoadFamilyParameters(fi.Family);
-            UpdateAddButton();
-        }
 
         private void CmbSpfGroup_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
@@ -160,7 +211,6 @@ namespace STB2026.RevitBridge.UI
                         if (lastColon >= 0 && lastColon < dataType.Length - 1)
                             shortType = dataType.Substring(lastColon + 1).Replace("-2.0.0", "");
 
-                        // Сохраняем GUID как строку сразу — объект может стать невалидным
                         string guidStr = "";
                         try { guidStr = extDef.GUID.ToString(); } catch { }
 
@@ -175,6 +225,7 @@ namespace STB2026.RevitBridge.UI
                         });
                     }
                 }
+                // Сортировка по алфавиту
                 _spfParams = _spfParams.OrderBy(p => p.Name).ToList();
                 cmbParam.ItemsSource = _spfParams;
                 cmbParam.DisplayMemberPath = "DisplayText";
@@ -206,10 +257,40 @@ namespace STB2026.RevitBridge.UI
             UpdateAddButton();
         }
 
+        private void CmbCategory_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (cmbCategory.SelectedItem is CategoryInfo ci)
+                LoadFamiliesByCategory(ci.BuiltIn);
+            UpdateAddButton();
+        }
+
+        private void ChkAllFamilies_Changed(object sender, RoutedEventArgs e)
+        {
+            bool isAll = chkAllFamilies.IsChecked == true;
+            foreach (var item in _familyCheckItems)
+            {
+                item.IsChecked = isAll;
+                if (item.CheckBox != null)
+                    item.CheckBox.IsChecked = isAll;
+            }
+            UpdateAddButton();
+        }
+
+        private void FamilyCb_Changed(object sender, RoutedEventArgs e)
+        {
+            if (sender is CheckBox cb && cb.Tag is FamilyCheckItem item)
+                item.IsChecked = cb.IsChecked == true;
+            UpdateAddButton();
+        }
+
         private void UpdateAddButton()
         {
-            btnAdd.IsEnabled = cmbFamily.SelectedItem is FamilyInfo
-                            && cmbParam.SelectedItem is SpfParamInfo;
+            bool hasParam = cmbParam.SelectedItem is SpfParamInfo;
+            bool hasFamilies = _familyCheckItems.Any(f => f.IsChecked);
+            btnAdd.IsEnabled = hasParam && hasFamilies;
+
+            int count = _familyCheckItems.Count(f => f.IsChecked);
+            txtStatus.Text = count > 0 ? $"Выбрано семейств: {count}" : "";
         }
 
         // ═══════════════════════════════════════════════════════════
@@ -218,22 +299,22 @@ namespace STB2026.RevitBridge.UI
 
         private void BtnAdd_Click(object sender, RoutedEventArgs e)
         {
-            if (!(cmbFamily.SelectedItem is FamilyInfo fi)) return;
             if (!(cmbParam.SelectedItem is SpfParamInfo pi)) return;
 
             bool isInstance = rbInstance.IsChecked == true;
             string displayGroup = cmbDisplayGroup.SelectedItem?.ToString() ?? "Общие";
 
-            // ══════════════════════════════════════════════════════
-            // FIX: Сохраняем ВСЕ данные в локальные строки ДО вызова,
-            // т.к. после операций с семейством объекты SpfParamInfo
-            // и ExternalDefinition могут стать невалидными
-            // ══════════════════════════════════════════════════════
-            string familyName = fi.Family.Name;
+            // Собираем данные в простые строки ДО любых операций с Revit
             string paramName = pi.Name;
             string paramGroupName = pi.GroupName;
             string paramGuid = pi.GuidString;
-            string paramDataType = pi.DataType;
+
+            var selectedFamilies = _familyCheckItems
+                .Where(f => f.IsChecked)
+                .Select(f => new { f.FamilyName, f.FamilyId })
+                .ToList();
+
+            if (selectedFamilies.Count == 0) return;
 
             string linkedParamName = null;
             if (cmbLinkParam.SelectedIndex > 0 && cmbLinkParam.SelectedItem is string linkStr)
@@ -242,32 +323,54 @@ namespace STB2026.RevitBridge.UI
                 linkedParamName = bracketIdx > 0 ? linkStr.Substring(0, bracketIdx) : linkStr;
             }
 
-            btnAdd.IsEnabled = false;
-            btnAdd.Content = "Выполняю...";
+            // ═══════════════════════════════════════════════════════
+            // FIX: Закрываем окно ПЕРЕД операцией.
+            // После EditFamily/OpenDocumentFile/LoadFamily все объекты
+            // WPF-привязок (Family, DefinitionGroup) становятся невалидными.
+            // Если окно открыто — WPF пытается обновить биндинги и падает.
+            // ═══════════════════════════════════════════════════════
+            this.Hide();
 
-            try
-            {
-                string result = AddSharedParamToFamily(
-                    fi.Family, paramName, paramGroupName,
-                    isInstance, displayGroup, linkedParamName);
+            var results = new List<string>();
+            int successCount = 0;
+            int failCount = 0;
 
-                System.Windows.MessageBox.Show(result, "Результат",
-                    MessageBoxButton.OK, MessageBoxImage.Information);
-            }
-            catch (Exception ex)
+            foreach (var sel in selectedFamilies)
             {
-                // FIX: Используем только локальные строки, не обращаемся к pi/fi
-                System.Windows.MessageBox.Show(
-                    $"Параметр '{paramName}' мог быть добавлен в семейство '{familyName}',\n" +
-                    $"но возникла ошибка при завершении операции:\n\n{ex.Message}\n\n" +
-                    $"Проверьте свойства элемента — параметр может уже работать.",
-                    "Внимание", MessageBoxButton.OK, MessageBoxImage.Warning);
+                try
+                {
+                    // Ищем семейство по ID заново — после предыдущих LoadFamily
+                    Family family = _doc.GetElement(new ElementId(sel.FamilyId)) as Family;
+                    if (family == null)
+                    {
+                        results.Add($"✗ {sel.FamilyName}: семейство не найдено");
+                        failCount++;
+                        continue;
+                    }
+
+                    string result = AddSharedParamToFamily(
+                        family, paramName, paramGroupName,
+                        isInstance, displayGroup, linkedParamName);
+
+                    results.Add(result);
+                    if (result.StartsWith("✓")) successCount++;
+                    else failCount++;
+                }
+                catch (Exception ex)
+                {
+                    results.Add($"⚠ {sel.FamilyName}: {ex.Message}");
+                    failCount++;
+                }
             }
-            finally
-            {
-                btnAdd.IsEnabled = true;
-                btnAdd.Content = "Добавить";
-            }
+
+            // Показываем результат обычным TaskDialog (после закрытия окна)
+            string summary = $"Готово: {successCount} успешно, {failCount} ошибок\n" +
+                             $"Параметр: {paramName}\n" +
+                             $"GUID: {paramGuid}\n\n" +
+                             string.Join("\n", results);
+
+            TaskDialog.Show("STB2026 — Результат", summary);
+            this.Close();
         }
 
         private void BtnClose_Click(object sender, RoutedEventArgs e)
@@ -283,45 +386,43 @@ namespace STB2026.RevitBridge.UI
             Family family, string sharedParamName, string spfGroupName,
             bool isInstance, string displayGroup, string linkedParamName)
         {
+            string familyName = family.Name;
             string tempDir = Path.Combine(Path.GetTempPath(), "STB2026_Families");
             Directory.CreateDirectory(tempDir);
-            string tempRfaPath = Path.Combine(tempDir, $"{family.Name}.rfa");
-
-            // Сохраняем имя до любых операций
-            string familyName = family.Name;
+            string tempRfaPath = Path.Combine(tempDir, $"{familyName}.rfa");
 
             Document famDoc = null;
             Document openedFamDoc = null;
 
             try
             {
-                // 1. Экспортируем семейство во временный .rfa
+                // 1. Экспортируем во временный .rfa
                 famDoc = _doc.EditFamily(family);
                 if (famDoc == null)
-                    return "Не удалось открыть документ семейства";
+                    return $"✗ {familyName}: не удалось открыть";
 
                 famDoc.SaveAs(tempRfaPath, new SaveAsOptions { OverwriteExistingFile = true });
                 famDoc.Close(false);
                 famDoc = null;
 
-                // 2. Открываем .rfa как отдельный документ
+                // 2. Открываем .rfa
                 openedFamDoc = _uiApp.Application.OpenDocumentFile(tempRfaPath);
                 if (openedFamDoc == null)
-                    return "Не удалось открыть временный .rfa файл";
+                    return $"✗ {familyName}: не удалось открыть .rfa";
 
                 var famMgr = openedFamDoc.FamilyManager;
 
-                // 3. Проверяем что параметр не существует
+                // 3. Проверяем дубликат
                 foreach (FamilyParameter fp in famMgr.Parameters)
                 {
                     if (fp.Definition.Name == sharedParamName)
                     {
                         openedFamDoc.Close(false);
-                        return $"Параметр '{sharedParamName}' уже существует в '{familyName}'";
+                        return $"— {familyName}: параметр уже существует";
                     }
                 }
 
-                // 4. Получаем СВЕЖИЙ ExternalDefinition в контексте famDoc
+                // 4. Получаем ExternalDefinition в контексте famDoc
                 ExternalDefinition freshExtDef = null;
                 DefinitionFile defFile = null;
                 try { defFile = openedFamDoc.Application.OpenSharedParameterFile(); } catch { }
@@ -330,7 +431,6 @@ namespace STB2026.RevitBridge.UI
 
                 if (defFile != null)
                 {
-                    // Сначала ищем в конкретной группе
                     DefinitionGroup targetGroup = defFile.Groups.get_Item(spfGroupName);
                     if (targetGroup != null)
                     {
@@ -338,8 +438,6 @@ namespace STB2026.RevitBridge.UI
                         if (def is ExternalDefinition ed)
                             freshExtDef = ed;
                     }
-
-                    // Если не нашли — поиск по всем группам
                     if (freshExtDef == null)
                     {
                         foreach (DefinitionGroup group in defFile.Groups)
@@ -357,13 +455,13 @@ namespace STB2026.RevitBridge.UI
                 if (freshExtDef == null)
                 {
                     openedFamDoc.Close(false);
-                    return $"Параметр '{sharedParamName}' не найден в ФОП";
+                    return $"✗ {familyName}: параметр не найден в ФОП";
                 }
 
                 // 5. Группа отображения
                 ForgeTypeId groupId = ResolveGroupTypeId(displayGroup);
 
-                // 6. Добавляем параметр
+                // 6. Добавляем
                 using (var trans = new Transaction(openedFamDoc, "STB2026: Add Shared Param"))
                 {
                     trans.Start();
@@ -382,9 +480,8 @@ namespace STB2026.RevitBridge.UI
 
                     FamilyParameter newParam = famMgr.AddParameter(freshExtDef, groupId, isInstance);
                     if (newParam == null)
-                        throw new InvalidOperationException("FamilyManager.AddParameter вернул null");
+                        throw new InvalidOperationException("AddParameter вернул null");
 
-                    // 7. Связать формулой
                     if (!string.IsNullOrWhiteSpace(linkedParamName))
                     {
                         try { famMgr.SetFormula(newParam, linkedParamName); }
@@ -394,12 +491,12 @@ namespace STB2026.RevitBridge.UI
                     trans.Commit();
                 }
 
-                // 8. Сохраняем и закрываем
+                // 7. Сохраняем и закрываем
                 openedFamDoc.Save();
                 openedFamDoc.Close(false);
                 openedFamDoc = null;
 
-                // 9. Загружаем обратно в проект
+                // 8. Загружаем обратно
                 Family reloadedFamily = null;
                 using (var trans = new Transaction(_doc, $"STB2026: Reload {familyName}"))
                 {
@@ -408,21 +505,16 @@ namespace STB2026.RevitBridge.UI
                     trans.Commit();
                 }
 
-                // FIX: Используем только локальные строки — никаких обращений к объектам Revit
                 string linkedInfo = string.IsNullOrWhiteSpace(linkedParamName)
-                    ? "" : $"\nСвязан формулой с: {linkedParamName}";
+                    ? "" : $" (формула: {linkedParamName})";
 
-                return $"✓ Параметр '{sharedParamName}' успешно добавлен\n" +
-                       $"  в семейство '{familyName}'\n" +
-                       $"  Тип: {(isInstance ? "Экземпляр" : "Тип")}\n" +
-                       $"  Группа: {displayGroup}" + linkedInfo;
+                return $"✓ {familyName}: добавлен{linkedInfo}";
             }
             catch (Exception ex)
             {
                 try { famDoc?.Close(false); } catch { }
                 try { openedFamDoc?.Close(false); } catch { }
-                throw new InvalidOperationException(
-                    $"Ошибка при добавлении '{sharedParamName}' в '{familyName}': {ex.Message}", ex);
+                return $"⚠ {familyName}: {ex.Message}";
             }
             finally
             {
@@ -473,12 +565,6 @@ namespace STB2026.RevitBridge.UI
         //  Внутренние классы
         // ═══════════════════════════════════════════════════════════
 
-        internal class FamilyInfo
-        {
-            public Family Family { get; set; }
-            public string DisplayName { get; set; }
-        }
-
         internal class SpfGroupInfo
         {
             public string Name { get; set; }
@@ -495,6 +581,21 @@ namespace STB2026.RevitBridge.UI
             public string ShortType { get; set; }
             public string GroupName { get; set; }
             public string DisplayText { get; set; }
+        }
+
+        internal class CategoryInfo
+        {
+            public BuiltInCategory BuiltIn { get; set; }
+            public Category Category { get; set; }
+            public string DisplayName { get; set; }
+        }
+
+        internal class FamilyCheckItem
+        {
+            public string FamilyName { get; set; }
+            public long FamilyId { get; set; }
+            public bool IsChecked { get; set; }
+            public CheckBox CheckBox { get; set; }
         }
 
         internal class OverwriteFamilyLoadOptions : IFamilyLoadOptions
