@@ -1,0 +1,38 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <RootNamespace>STB2026.McpServer</RootNamespace>
+    <AssemblyName>STB2026.McpServer</AssemblyName>
+    <LangVersion>latest</LangVersion>
+
+    <!-- Сборка в C:\STB2026\McpServer\ -->
+    <OutputPath>C:\STB2026\McpServer\</OutputPath>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
+
+    <!-- Self-contained: все зависимости включены, не нужен отдельный .NET Runtime -->
+    <SelfContained>true</SelfContained>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <PublishSingleFile>false</PublishSingleFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="ModelContextProtocol" Version="0.6.0-preview.1" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="9.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\STB2026.Shared\STB2026.Shared.csproj" />
+  </ItemGroup>
+
+  <!-- После сборки: обновляем claude_desktop_config.json -->
+  <Target Name="CopyClaudeConfig" AfterTargets="Build">
+    <Copy
+      SourceFiles="..\config\claude_desktop_config.json"
+      DestinationFolder="C:\STB2026\"
+      SkipUnchangedFiles="true" />
+    <Message Importance="High"
+      Text="[STB2026] claude_desktop_config.json → C:\STB2026\" />
+  </Target>
+</Project>

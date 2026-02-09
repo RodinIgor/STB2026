@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "Revit_STB2026": {
+      "type": "stdio",
+      "command": "C:\\STB2026\\McpServer\\STB2026.McpServer.exe"
+    }
+  }
+}

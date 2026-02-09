@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RevitAddIns>
+  <AddIn Type="Application">
+    <Name>STB2026 HVAC + AI Connector</Name>
+    <Assembly>C:\STB2026\STB2026.RevitBridge.dll</Assembly>
+    <AddInId>B2026B0D-1234-5678-9ABC-DEF012345678</AddInId>
+    <FullClassName>STB2026.RevitBridge.BridgeApp</FullClassName>
+    <VendorId>STB2026</VendorId>
+    <VendorDescription>STB2026 HVAC Tools + AI Connector for Revit 2025</VendorDescription>
+  </AddIn>
+</RevitAddIns>
