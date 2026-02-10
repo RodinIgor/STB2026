@@ -8,24 +8,11 @@ using STB2026.RevitBridge.Infrastructure;
 namespace STB2026.RevitBridge
 {
     /// <summary>
-    /// STB2026 — единая точка входа (IExternalApplication).
-    /// 
-    /// Объединяет:
-    /// 1. MCP Bridge (Named Pipe → Claude/Cursor)
-    /// 2. HVAC инструменты (кнопки на ribbon)
-    /// 
-    /// Все на одной вкладке "STB2026":
-    /// ┌──────────────────────────────────────────────────────────────────────┐
-    /// │  Оформление  │  Проверки  │  Расчёты  │  Семейства │ AI Connector  │
-    /// │  Маркировка  │  Скорости  │  Пересеч. │  Параметры │ A.I.         │
-    /// │  воздухов.   │  Валидация │  со стен. │  ФОП       │ Connector    │
-    /// │              │  Сбросить  │           │            │              │
-    /// │              │  цвета     │           │            │              │
-    /// └──────────────────────────────────────────────────────────────────────┘
+    /// STB2026 MCP Bridge — единая точка входа (IExternalApplication).
+    /// Только AI Connector панель. HVAC-плагины в отдельном проекте Application.
     /// </summary>
     public class BridgeApp : IExternalApplication
     {
-        // ═══ Статические ссылки для доступа из команд ═══
         public static McpSettingsManager Settings { get; private set; }
         public static bool IsPipeActive { get; private set; }
 
@@ -39,34 +26,49 @@ namespace STB2026.RevitBridge
             {
                 string assemblyPath = Assembly.GetExecutingAssembly().Location;
 
-                // ═══════════════════════════════════════
-                // 1. Создаём единую вкладку STB2026
-                // ═══════════════════════════════════════
                 try { application.CreateRibbonTab("STB2026"); }
-                catch { /* Уже создана — нормально */ }
+                catch { /* Уже создана другим плагином */ }
 
-                // ═══════════════════════════════════════
-                // 2. HVAC панели (кнопки)
-                // ═══════════════════════════════════════
-                CreateHvacPanels(application, assemblyPath);
+                // MCP Bridge инфраструктура
+                Settings = new McpSettingsManager();
+                Settings.LoadSettings();
 
-                // ═══════════════════════════════════════
-                // 3. Панель Семейства
-                // ═══════════════════════════════════════
-                CreateFamilyPanels(application, assemblyPath);
+                _eventBridge = new EventBridge();
+                _eventBridge.Initialize(application);
 
-                // ═══════════════════════════════════════
-                // 4. MCP Bridge (AI Connector)
-                // ═══════════════════════════════════════
-                InitializeMcpBridge(application, assemblyPath);
+                _router = new CommandRouter(_eventBridge);
+                RegisterHandlers();
+                _router.SetSettingsManager(Settings);
 
-                Debug.WriteLine("[STB2026] ✅ Плагин запущен (HVAC + MCP Bridge)");
+                if (Settings.EnableConnection)
+                {
+                    _pipeServer = new PipeServer(_router);
+                    _pipeServer.Start();
+                    IsPipeActive = true;
+                }
+
+                // Панель AI Connector
+                try
+                {
+                    RibbonPanel panelAI = application.CreateRibbonPanel("STB2026", "AI Connector");
+                    var btnMcp = new PushButtonData(
+                        "cmdMcpSettings", "A.I.\nConnector", assemblyPath,
+                        "STB2026.RevitBridge.McpSettingsCommand");
+                    btnMcp.ToolTip = "Настройки подключения Claude / Cursor к Revit через MCP.";
+                    panelAI.AddItem(btnMcp);
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"[STB2026 Bridge] Не удалось добавить кнопку AI: {ex.Message}");
+                }
+
+                Debug.WriteLine("[STB2026 Bridge] MCP Bridge запущен (11 обработчиков)");
                 return Result.Succeeded;
             }
             catch (Exception ex)
             {
-                TaskDialog.Show("STB2026 — Ошибка",
-                    $"Не удалось запустить плагин:\n{ex.Message}");
+                TaskDialog.Show("STB2026 Bridge",
+                    $"Не удалось запустить MCP Bridge:\n{ex.Message}");
                 return Result.Failed;
             }
         }
@@ -75,163 +77,40 @@ namespace STB2026.RevitBridge
         {
             _pipeServer?.Dispose();
             IsPipeActive = false;
-            Debug.WriteLine("[STB2026] Остановлен");
             return Result.Succeeded;
         }
 
-        // ═══════════════════════════════════════════════════════════
-        //  HVAC панели
-        // ═══════════════════════════════════════════════════════════
-
-        private void CreateHvacPanels(UIControlledApplication app, string assemblyPath)
-        {
-            // ─── Панель: Оформление ───
-            RibbonPanel panelDecor = app.CreateRibbonPanel("STB2026", "Оформление");
-
-            var btnTagDucts = new PushButtonData(
-                "cmdTagDucts",
-                "Маркировка\nвоздуховодов",
-                assemblyPath,
-                "STB2026.RevitBridge.Commands.TagDuctsCommand"
-            );
-            btnTagDucts.ToolTip = "Автоматическая маркировка воздуховодов:\nрасход, размер, скорость";
-            panelDecor.AddItem(btnTagDucts);
-
-            // ─── Панель: Проверки ───
-            RibbonPanel panelChecks = app.CreateRibbonPanel("STB2026", "Проверки");
-
-            var btnVelocity = new PushButtonData(
-                "cmdVelocityCheck",
-                "Проверка\nскоростей",
-                assemblyPath,
-                "STB2026.RevitBridge.Commands.VelocityCheckCommand"
-            );
-            btnVelocity.ToolTip = "Проверка скоростей воздуха по СП 60.13330.2020\nЦветовая карта: зелёный/жёлтый/оранжевый";
-            panelChecks.AddItem(btnVelocity);
-
-            var btnValidation = new PushButtonData(
-                "cmdSystemValidation",
-                "Валидация\nсистемы",
-                assemblyPath,
-                "STB2026.RevitBridge.Commands.SystemValidationCommand"
-            );
-            btnValidation.ToolTip = "Проверка: нулевые расходы, отключённые элементы,\nненазначенные системы";
-            panelChecks.AddItem(btnValidation);
-
-            var btnResetColors = new PushButtonData(
-                "cmdResetColors",
-                "Сбросить\nцвета",
-                assemblyPath,
-                "STB2026.RevitBridge.Commands.ResetColorsCommand"
-            );
-            btnResetColors.ToolTip = "Сбросить цветовые переопределения\nдля всех воздуховодов на текущем виде";
-            panelChecks.AddItem(btnResetColors);
-
-            // ─── Панель: Расчёты ───
-            RibbonPanel panelCalc = app.CreateRibbonPanel("STB2026", "Расчёты");
-
-            var btnWallInt = new PushButtonData(
-                "cmdWallIntersections",
-                "Пересечения\nсо стенами",
-                assemblyPath,
-                "STB2026.RevitBridge.Commands.WallIntersectionsCommand"
-            );
-            btnWallInt.ToolTip = "Поиск пересечений воздуховодов со стенами\n(включая связанные файлы) и координатный отчёт";
-            panelCalc.AddItem(btnWallInt);
-        }
-
-        // ═══════════════════════════════════════════════════════════
-        //  Панель Семейства
-        // ═══════════════════════════════════════════════════════════
-
-        private void CreateFamilyPanels(UIControlledApplication app, string assemblyPath)
-        {
-            try
-            {
-                RibbonPanel panelFamilies = app.CreateRibbonPanel("STB2026", "Семейства");
-
-                var btnSharedParam = new PushButtonData(
-                    "cmdAddSharedParam",
-                    "Параметры\nФОП",
-                    assemblyPath,
-                    "STB2026.RevitBridge.Commands.AddSharedParamCommand"
-                );
-                btnSharedParam.ToolTip = "Добавить общий параметр из ФОП в семейство";
-                btnSharedParam.LongDescription =
-                    "Открывает окно для добавления общих параметров\n" +
-                    "из файла общих параметров (ФОП) непосредственно\n" +
-                    "в редактор семейства.\n\n" +
-                    "• Выбор семейства из проекта\n" +
-                    "• Выбор параметра из любой группы ФОП\n" +
-                    "• Настройка привязки (экземпляр/тип)\n" +
-                    "• Выбор группы отображения в свойствах\n" +
-                    "• Связывание с параметром семейства формулой";
-
-                panelFamilies.AddItem(btnSharedParam);
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"[STB2026] Не удалось создать панель Семейства: {ex.Message}");
-            }
-        }
-
-        // ═══════════════════════════════════════════════════════════
-        //  MCP Bridge
-        // ═══════════════════════════════════════════════════════════
-
-        private void InitializeMcpBridge(UIControlledApplication app, string assemblyPath)
-        {
-            // 1. Настройки
-            Settings = new McpSettingsManager();
-            Settings.LoadSettings();
-
-            // 2. EventBridge — мост фоновый поток → UI поток Revit
-            _eventBridge = new EventBridge();
-            _eventBridge.Initialize(app);
-
-            // 3. CommandRouter — маршрутизация MCP команд
-            _router = new CommandRouter(_eventBridge);
-            RegisterHandlers();
-            _router.SetSettingsManager(Settings);
-
-            // 4. PipeServer — если подключение включено
-            if (Settings.EnableConnection)
-            {
-                _pipeServer = new PipeServer(_router);
-                _pipeServer.Start();
-                IsPipeActive = true;
-            }
-
-            // 5. Кнопка AI Connector
-            try
-            {
-                RibbonPanel panelAI = app.CreateRibbonPanel("STB2026", "AI Connector");
-
-                var btnMcp = new PushButtonData(
-                    "cmdMcpSettings",
-                    "A.I.\nConnector",
-                    assemblyPath,
-                    "STB2026.RevitBridge.McpSettingsCommand"
-                );
-                btnMcp.ToolTip = "Настройки подключения Claude / Cursor к Revit через MCP.\n" +
-                                  "Auto-setup, Manual JSON, тоглы read/write доступа.";
-                panelAI.AddItem(btnMcp);
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"[STB2026] Не удалось добавить кнопку AI: {ex.Message}");
-            }
-        }
-
-        /// <summary>Регистрация всех 6 MCP обработчиков.</summary>
+        /// <summary>Регистрация всех 11 MCP обработчиков.</summary>
         private void RegisterHandlers()
         {
-            _router.Register("get_model_info", ModelInfoHandler.Handle);
-            _router.Register("get_elements", ElementsHandler.Handle);
+            // ── Чтение ──
+            _router.Register("get_model_info",    ModelInfoHandler.Handle);
+            _router.Register("get_elements",      ElementsHandler.Handle);
             _router.Register("get_element_params", ElementParamsHandler.Handle);
-            _router.Register("modify_model", ModifyHandler.Handle);
-            _router.Register("run_hvac_check", HvacCheckHandler.Handle);
-            _router.Register("manage_families", FamilyHandler.Handle);
+
+            // ── Модификация ──
+            _router.Register("modify_model",      ModifyHandler.Handle);
+
+            // ── HVAC ──
+            _router.Register("run_hvac_check",    HvacCheckHandler.Handle);
+
+            // ── Семейства ──
+            _router.Register("manage_families",   FamilyHandler.Handle);
+
+            // ── Листы и видовые экраны ──
+            _router.Register("manage_sheets",     SheetHandler.Handle);
+
+            // ── Виды ──
+            _router.Register("manage_views",      ViewHandler.Handle);
+
+            // ── Создание элементов ──
+            _router.Register("create_elements",   CreationHandler.Handle);
+
+            // ── Геометрия и измерения ──
+            _router.Register("query_geometry",    GeometryHandler.Handle);
+
+            // ── Проект ──
+            _router.Register("manage_project",    ProjectHandler.Handle);
         }
     }
 }

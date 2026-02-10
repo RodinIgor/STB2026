@@ -13,7 +13,7 @@ namespace STB2026.RevitBridge.Services
         public string DuctSize { get; set; } = "";
         public int WallId { get; set; }
         public string WallType { get; set; } = "";
-        /// <summary>Источник стены: "" для текущего документа, имя линка для связанного</summary>
+        /// <summary>Ð˜ÑÑ‚Ð¾Ñ‡Ð½Ð¸Ðº ÑÑ‚ÐµÐ½Ñ‹: "" Ð´Ð»Ñ Ñ‚ÐµÐºÑƒÑ‰ÐµÐ³Ð¾ Ð´Ð¾ÐºÑƒÐ¼ÐµÐ½Ñ‚Ð°, Ð¸Ð¼Ñ Ð»Ð¸Ð½ÐºÐ° Ð´Ð»Ñ ÑÐ²ÑÐ·Ð°Ð½Ð½Ð¾Ð³Ð¾</summary>
         public string WallSource { get; set; } = "";
         public double X { get; set; }
         public double Y { get; set; }
@@ -52,10 +52,10 @@ namespace STB2026.RevitBridge.Services
 
             if (ducts.Count == 0) return result;
 
-            // 1. Стены текущего документа
+            // 1. Ð¡Ñ‚ÐµÐ½Ñ‹ Ñ‚ÐµÐºÑƒÑ‰ÐµÐ³Ð¾ Ð´Ð¾ÐºÑƒÐ¼ÐµÐ½Ñ‚Ð°
             FindIntersectionsWithLocalWalls(ducts, rawIntersections);
 
-            // 2. Стены из связанных файлов (RevitLinkInstance)
+            // 2. Ð¡Ñ‚ÐµÐ½Ñ‹ Ð¸Ð· ÑÐ²ÑÐ·Ð°Ð½Ð½Ñ‹Ñ… Ñ„Ð°Ð¹Ð»Ð¾Ð² (RevitLinkInstance)
             var linkInstances = new FilteredElementCollector(_doc)
                 .OfClass(typeof(RevitLinkInstance))
                 .Cast<RevitLinkInstance>()
@@ -80,7 +80,7 @@ namespace STB2026.RevitBridge.Services
             }
             result.LinkedWallCount = linkedWallCount;
 
-            // 3. Группировка: DuctId+WallId = одна проходка
+            // 3. Ð“Ñ€ÑƒÐ¿Ð¿Ð¸Ñ€Ð¾Ð²ÐºÐ°: DuctId+WallId = Ð¾Ð´Ð½Ð° Ð¿Ñ€Ð¾Ñ…Ð¾Ð´ÐºÐ°
             result.Intersections = GroupIntersections(rawIntersections);
 
             return result;

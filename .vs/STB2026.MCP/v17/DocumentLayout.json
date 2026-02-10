@@ -1,0 +1,36 @@
+{
+  "Version": 1,
+  "WorkspaceRootPath": "E:\\Sorted\\Programms\\STB2026\\",
+  "Documents": [
+    {
+      "AbsoluteMoniker": "D:0:0:{A1B2C3D4-1111-2222-3333-444455556666}|STB2026.RevitBridge\\STB2026.RevitBridge.csproj|e:\\sorted\\programms\\stb2026\\stb2026.revitbridge\\stb2026.revitbridge.csproj||{04B8AB82-A572-4FEF-95CE-5222444B6B64}|",
+      "RelativeMoniker": "D:0:0:{A1B2C3D4-1111-2222-3333-444455556666}|STB2026.RevitBridge\\STB2026.RevitBridge.csproj|solutionrelative:stb2026.revitbridge\\stb2026.revitbridge.csproj||{04B8AB82-A572-4FEF-95CE-5222444B6B64}|"
+    }
+  ],
+  "DocumentGroupContainers": [
+    {
+      "Orientation": 0,
+      "VerticalTabListWidth": 256,
+      "DocumentGroups": [
+        {
+          "DockedWidth": 200,
+          "SelectedChildIndex": 0,
+          "Children": [
+            {
+              "$type": "Document",
+              "DocumentIndex": 0,
+              "Title": "STB2026.RevitBridge",
+              "DocumentMoniker": "E:\\Sorted\\Programms\\STB2026\\STB2026.RevitBridge\\STB2026.RevitBridge.csproj",
+              "RelativeDocumentMoniker": "STB2026.RevitBridge\\STB2026.RevitBridge.csproj",
+              "ToolTip": "E:\\Sorted\\Programms\\STB2026\\STB2026.RevitBridge\\STB2026.RevitBridge.csproj",
+              "RelativeToolTip": "STB2026.RevitBridge\\STB2026.RevitBridge.csproj",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000758|",
+              "WhenOpened": "2026-02-10T09:10:19.368Z",
+              "EditorCaption": ""
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

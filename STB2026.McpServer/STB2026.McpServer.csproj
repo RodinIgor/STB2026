@@ -11,7 +11,7 @@
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
     <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
 
-    <!-- Self-contained: все зависимости включены, не нужен отдельный .NET Runtime -->
+    <!-- Self-contained: все зависимости включены -->
     <SelfContained>true</SelfContained>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <PublishSingleFile>false</PublishSingleFile>
@@ -26,7 +26,7 @@
     <ProjectReference Include="..\STB2026.Shared\STB2026.Shared.csproj" />
   </ItemGroup>
 
-  <!-- После сборки: обновляем claude_desktop_config.json -->
+  <!-- Post-build: копируем claude_desktop_config.json -->
   <Target Name="CopyClaudeConfig" AfterTargets="Build">
     <Copy
       SourceFiles="..\config\claude_desktop_config.json"

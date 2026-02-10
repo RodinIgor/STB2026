@@ -8,7 +8,7 @@ using Newtonsoft.Json.Linq;
 namespace STB2026.RevitBridge.Handlers
 {
     /// <summary>
-    /// modify_model — все операции записи в модель Revit.
+    /// modify_model â€” Ð²ÑÐµ Ð¾Ð¿ÐµÑ€Ð°Ñ†Ð¸Ð¸ Ð·Ð°Ð¿Ð¸ÑÐ¸ Ð² Ð¼Ð¾Ð´ÐµÐ»ÑŒ Revit.
     /// action: set_param, set_color, reset_color, select, move, rotate, delete, isolate, create_tag.
     /// </summary>
     internal static class ModifyHandler
@@ -17,7 +17,7 @@ namespace STB2026.RevitBridge.Handlers
         {
             var uidoc = uiApp.ActiveUIDocument;
             if (uidoc == null)
-                return new { error = "Нет открытого документа" };
+                return new { error = "ÐÐµÑ‚ Ð¾Ñ‚ÐºÑ€Ñ‹Ñ‚Ð¾Ð³Ð¾ Ð´Ð¾ÐºÑƒÐ¼ÐµÐ½Ñ‚Ð°" };
 
             var doc = uidoc.Document;
             string action = p.TryGetValue("action", out var a) ? a?.ToString() ?? "" : "";
@@ -27,7 +27,7 @@ namespace STB2026.RevitBridge.Handlers
             var elementIds = ParamHelper.ParseIds(idsStr);
             JObject data;
             try { data = JObject.Parse(dataStr); }
-            catch { return new { error = $"Невалидный JSON в data: {dataStr}" }; }
+            catch { return new { error = $"ÐÐµÐ²Ð°Ð»Ð¸Ð´Ð½Ñ‹Ð¹ JSON Ð² data: {dataStr}" }; }
 
             switch (action.ToLowerInvariant())
             {
@@ -43,21 +43,21 @@ namespace STB2026.RevitBridge.Handlers
                 default:
                     return new
                     {
-                        error = $"Неизвестное действие: '{action}'",
+                        error = $"ÐÐµÐ¸Ð·Ð²ÐµÑÑ‚Ð½Ð¾Ðµ Ð´ÐµÐ¹ÑÑ‚Ð²Ð¸Ðµ: '{action}'",
                         available = new[] { "set_param", "set_color", "reset_color", "select",
                                            "move", "rotate", "delete", "isolate", "create_tag" }
                     };
             }
         }
 
-        // ═══ set_param ═══
+        // â•â•â• set_param â•â•â•
         private static object SetParam(Document doc, List<ElementId> ids, JObject data)
         {
             string paramName = data.Value<string>("param_name") ?? "";
             string paramValue = data.Value<string>("param_value") ?? "";
 
             if (string.IsNullOrWhiteSpace(paramName))
-                return new { error = "Укажите param_name" };
+                return new { error = "Ð£ÐºÐ°Ð¶Ð¸Ñ‚Ðµ param_name" };
 
             int success = 0, failed = 0;
             var errors = new List<string>();
@@ -75,7 +75,7 @@ namespace STB2026.RevitBridge.Handlers
                     if (param == null || param.IsReadOnly)
                     {
                         failed++;
-                        errors.Add($"id {id.IntegerValue}: параметр '{paramName}' не найден или read-only");
+                        errors.Add($"id {id.IntegerValue}: Ð¿Ð°Ñ€Ð°Ð¼ÐµÑ‚Ñ€ '{paramName}' Ð½Ðµ Ð½Ð°Ð¹Ð´ÐµÐ½ Ð¸Ð»Ð¸ read-only");
                         continue;
                     }
 
@@ -97,7 +97,7 @@ namespace STB2026.RevitBridge.Handlers
             return new { action = "set_param", param_name = paramName, success, failed, errors };
         }
 
-        // ═══ set_color ═══
+        // â•â•â• set_color â•â•â•
         private static object SetColor(Document doc, UIDocument uidoc, List<ElementId> ids, JObject data)
         {
             int r = data.Value<int?>("r") ?? 255;
@@ -110,14 +110,14 @@ namespace STB2026.RevitBridge.Handlers
                 : uidoc.ActiveView;
 
             if (view == null)
-                return new { error = "Вид не найден" };
+                return new { error = "Ð’Ð¸Ð´ Ð½Ðµ Ð½Ð°Ð¹Ð´ÐµÐ½" };
 
             var color = new Color((byte)r, (byte)g, (byte)b);
             var settings = new OverrideGraphicSettings();
             settings.SetProjectionLineColor(color);
             settings.SetSurfaceForegroundPatternColor(color);
 
-            // Сплошная заливка
+            // Ð¡Ð¿Ð»Ð¾ÑˆÐ½Ð°Ñ Ð·Ð°Ð»Ð¸Ð²ÐºÐ°
             var solidPattern = new FilteredElementCollector(doc)
                 .OfClass(typeof(FillPatternElement))
                 .Cast<FillPatternElement>()
@@ -141,7 +141,7 @@ namespace STB2026.RevitBridge.Handlers
             return new { action = "set_color", r, g, b, colored = count, view = view.Name };
         }
 
-        // ═══ reset_color ═══
+        // â•â•â• reset_color â•â•â•
         private static object ResetColor(Document doc, UIDocument uidoc, List<ElementId> ids)
         {
             var view = uidoc.ActiveView;
@@ -162,14 +162,14 @@ namespace STB2026.RevitBridge.Handlers
             return new { action = "reset_color", reset = count, view = view.Name };
         }
 
-        // ═══ select ═══
+        // â•â•â• select â•â•â•
         private static object SelectElements(UIDocument uidoc, List<ElementId> ids)
         {
             uidoc.Selection.SetElementIds(ids);
             return new { action = "select", selected = ids.Count };
         }
 
-        // ═══ move (dx, dy, dz в мм) ═══
+        // â•â•â• move (dx, dy, dz Ð² Ð¼Ð¼) â•â•â•
         private static object MoveElements(Document doc, List<ElementId> ids, JObject data)
         {
             double dxMm = data.Value<double?>("dx") ?? 0;
@@ -195,7 +195,7 @@ namespace STB2026.RevitBridge.Handlers
             return new { action = "move", dx_mm = dxMm, dy_mm = dyMm, dz_mm = dzMm, moved = count };
         }
 
-        // ═══ rotate (angle в градусах) ═══
+        // â•â•â• rotate (angle Ð² Ð³Ñ€Ð°Ð´ÑƒÑÐ°Ñ…) â•â•â•
         private static object RotateElements(Document doc, List<ElementId> ids, JObject data)
         {
             double angleDeg = data.Value<double?>("angle") ?? 0;
@@ -210,7 +210,7 @@ namespace STB2026.RevitBridge.Handlers
                     var el = doc.GetElement(id);
                     if (el == null) continue;
 
-                    // Ось вращения — через LocationPoint по Z
+                    // ÐžÑÑŒ Ð²Ñ€Ð°Ñ‰ÐµÐ½Ð¸Ñ â€” Ñ‡ÐµÑ€ÐµÐ· LocationPoint Ð¿Ð¾ Z
                     XYZ center;
                     if (el.Location is LocationPoint lp) center = lp.Point;
                     else if (el.Location is LocationCurve lc) center = lc.Curve.Evaluate(0.5, true);
@@ -226,7 +226,7 @@ namespace STB2026.RevitBridge.Handlers
             return new { action = "rotate", angle_deg = angleDeg, rotated = count };
         }
 
-        // ═══ delete ═══
+        // â•â•â• delete â•â•â•
         private static object DeleteElements(Document doc, List<ElementId> ids)
         {
             int count = 0;
@@ -249,10 +249,10 @@ namespace STB2026.RevitBridge.Handlers
             }
 
             return new { action = "delete", deleted = count, ids = deletedIds,
-                         warning = "НЕОБРАТИМО! Элементы удалены." };
+                         warning = "ÐÐ•ÐžÐ‘Ð ÐÐ¢Ð˜ÐœÐž! Ð­Ð»ÐµÐ¼ÐµÐ½Ñ‚Ñ‹ ÑƒÐ´Ð°Ð»ÐµÐ½Ñ‹." };
         }
 
-        // ═══ isolate ═══
+        // â•â•â• isolate â•â•â•
         private static object IsolateElements(UIDocument uidoc, List<ElementId> ids)
         {
             var view = uidoc.ActiveView;
@@ -267,7 +267,7 @@ namespace STB2026.RevitBridge.Handlers
             return new { action = "isolate", isolated = ids.Count, view = view.Name };
         }
 
-        // ═══ create_tag ═══
+        // â•â•â• create_tag â•â•â•
         private static object CreateTag(Document doc, UIDocument uidoc, List<ElementId> ids, JObject data)
         {
             string tagFamily = data.Value<string>("tag_family") ?? "";
@@ -285,9 +285,9 @@ namespace STB2026.RevitBridge.Handlers
 
                     try
                     {
-                        // Точка для марки — центр BoundingBox
+                        // Ð¢Ð¾Ñ‡ÐºÐ° Ð´Ð»Ñ Ð¼Ð°Ñ€ÐºÐ¸ â€” Ñ†ÐµÐ½Ñ‚Ñ€ BoundingBox
                         var bb = el.get_BoundingBox(view);
-                        if (bb == null) { errors.Add($"id {id.IntegerValue}: нет bbox"); continue; }
+                        if (bb == null) { errors.Add($"id {id.IntegerValue}: Ð½ÐµÑ‚ bbox"); continue; }
 
                         var center = (bb.Min + bb.Max) / 2;
                         var tagRef = new Reference(el);
@@ -307,7 +307,7 @@ namespace STB2026.RevitBridge.Handlers
             return new { action = "create_tag", tagged = count, errors };
         }
 
-        // ═══ Helpers ═══
+        // â•â•â• Helpers â•â•â•
 
         private static void SetParamValue(Parameter param, string value)
         {
@@ -318,21 +318,21 @@ namespace STB2026.RevitBridge.Handlers
                     break;
                 case StorageType.Integer:
                     if (int.TryParse(value, out int i)) param.Set(i);
-                    else throw new ArgumentException($"Ожидалось целое число, получено: {value}");
+                    else throw new ArgumentException($"ÐžÐ¶Ð¸Ð´Ð°Ð»Ð¾ÑÑŒ Ñ†ÐµÐ»Ð¾Ðµ Ñ‡Ð¸ÑÐ»Ð¾, Ð¿Ð¾Ð»ÑƒÑ‡ÐµÐ½Ð¾: {value}");
                     break;
                 case StorageType.Double:
                     if (double.TryParse(value.Replace(",", "."),
                         System.Globalization.NumberStyles.Float,
                         System.Globalization.CultureInfo.InvariantCulture, out double d))
-                        param.SetValueString(value); // через SetValueString — учитывает единицы
+                        param.SetValueString(value); // Ñ‡ÐµÑ€ÐµÐ· SetValueString â€” ÑƒÑ‡Ð¸Ñ‚Ñ‹Ð²Ð°ÐµÑ‚ ÐµÐ´Ð¸Ð½Ð¸Ñ†Ñ‹
                     else
-                        throw new ArgumentException($"Ожидалось число, получено: {value}");
+                        throw new ArgumentException($"ÐžÐ¶Ð¸Ð´Ð°Ð»Ð¾ÑÑŒ Ñ‡Ð¸ÑÐ»Ð¾, Ð¿Ð¾Ð»ÑƒÑ‡ÐµÐ½Ð¾: {value}");
                     break;
                 case StorageType.ElementId:
                     if (int.TryParse(value, out int eid))
                         param.Set(new ElementId(eid));
                     else
-                        throw new ArgumentException($"Ожидался ID элемента, получено: {value}");
+                        throw new ArgumentException($"ÐžÐ¶Ð¸Ð´Ð°Ð»ÑÑ ID ÑÐ»ÐµÐ¼ÐµÐ½Ñ‚Ð°, Ð¿Ð¾Ð»ÑƒÑ‡ÐµÐ½Ð¾: {value}");
                     break;
             }
         }

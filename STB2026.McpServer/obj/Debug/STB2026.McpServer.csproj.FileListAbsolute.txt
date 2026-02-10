@@ -1,0 +1,17 @@
+C:\STB2026\McpServer\STB2026.McpServer.exe
+C:\STB2026\McpServer\STB2026.McpServer.deps.json
+C:\STB2026\McpServer\STB2026.McpServer.runtimeconfig.json
+C:\STB2026\McpServer\STB2026.McpServer.dll
+C:\STB2026\McpServer\STB2026.McpServer.pdb
+E:\Sorted\Programms\STB2026\STB2026.McpServer\obj\Debug\STB2026.McpServer.csproj.AssemblyReference.cache
+E:\Sorted\Programms\STB2026\STB2026.McpServer\obj\Debug\STB2026.McpServer.GeneratedMSBuildEditorConfig.editorconfig
+E:\Sorted\Programms\STB2026\STB2026.McpServer\obj\Debug\STB2026.McpServer.AssemblyInfoInputs.cache
+E:\Sorted\Programms\STB2026\STB2026.McpServer\obj\Debug\STB2026.McpServer.AssemblyInfo.cs
+E:\Sorted\Programms\STB2026\STB2026.McpServer\obj\Debug\STB2026.McpServer.csproj.CoreCompileInputs.cache
+E:\Sorted\Programms\STB2026\STB2026.McpServer\obj\Debug\STB2026.McpServer.sourcelink.json
+E:\Sorted\Programms\STB2026\STB2026.McpServer\obj\Debug\STB2026..F1BEAD81.Up2Date
+E:\Sorted\Programms\STB2026\STB2026.McpServer\obj\Debug\STB2026.McpServer.dll
+E:\Sorted\Programms\STB2026\STB2026.McpServer\obj\Debug\refint\STB2026.McpServer.dll
+E:\Sorted\Programms\STB2026\STB2026.McpServer\obj\Debug\STB2026.McpServer.pdb
+E:\Sorted\Programms\STB2026\STB2026.McpServer\obj\Debug\STB2026.McpServer.genruntimeconfig.cache
+E:\Sorted\Programms\STB2026\STB2026.McpServer\obj\Debug\ref\STB2026.McpServer.dll

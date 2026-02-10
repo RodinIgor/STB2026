@@ -38,7 +38,7 @@ namespace STB2026.RevitBridge.Services
 
             if (ducts.Count == 0)
             {
-                result.Errors.Add("На текущем виде нет воздуховодов.");
+                result.Errors.Add("ÐÐ° Ñ‚ÐµÐºÑƒÑ‰ÐµÐ¼ Ð²Ð¸Ð´Ðµ Ð½ÐµÑ‚ Ð²Ð¾Ð·Ð´ÑƒÑ…Ð¾Ð²Ð¾Ð´Ð¾Ð².");
                 return result;
             }
 
@@ -62,7 +62,7 @@ namespace STB2026.RevitBridge.Services
 
             var occupiedZones = new List<BoundingBoxXYZ>();
 
-            using (Transaction tx = new Transaction(_doc, "STB2026: Маркировка воздуховодов"))
+            using (Transaction tx = new Transaction(_doc, "STB2026: ÐœÐ°Ñ€ÐºÐ¸Ñ€Ð¾Ð²ÐºÐ° Ð²Ð¾Ð·Ð´ÑƒÑ…Ð¾Ð²Ð¾Ð´Ð¾Ð²"))
             {
                 tx.Start();
 
@@ -80,7 +80,7 @@ namespace STB2026.RevitBridge.Services
                         if (locationCurve == null)
                         {
                             result.Skipped++;
-                            result.Errors.Add($"ID {duct.Id}: нет кривой расположения");
+                            result.Errors.Add($"ID {duct.Id}: Ð½ÐµÑ‚ ÐºÑ€Ð¸Ð²Ð¾Ð¹ Ñ€Ð°ÑÐ¿Ð¾Ð»Ð¾Ð¶ÐµÐ½Ð¸Ñ");
                             continue;
                         }
 

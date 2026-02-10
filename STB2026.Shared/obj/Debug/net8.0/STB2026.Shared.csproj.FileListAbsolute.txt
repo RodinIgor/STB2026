@@ -1,0 +1,13 @@
+E:\Sorted\Programms\STB2026\STB2026.Shared\bin\Debug\net8.0\STB2026.Shared.deps.json
+E:\Sorted\Programms\STB2026\STB2026.Shared\bin\Debug\net8.0\STB2026.Shared.dll
+E:\Sorted\Programms\STB2026\STB2026.Shared\bin\Debug\net8.0\STB2026.Shared.pdb
+E:\Sorted\Programms\STB2026\STB2026.Shared\obj\Debug\net8.0\STB2026.Shared.csproj.AssemblyReference.cache
+E:\Sorted\Programms\STB2026\STB2026.Shared\obj\Debug\net8.0\STB2026.Shared.GeneratedMSBuildEditorConfig.editorconfig
+E:\Sorted\Programms\STB2026\STB2026.Shared\obj\Debug\net8.0\STB2026.Shared.AssemblyInfoInputs.cache
+E:\Sorted\Programms\STB2026\STB2026.Shared\obj\Debug\net8.0\STB2026.Shared.AssemblyInfo.cs
+E:\Sorted\Programms\STB2026\STB2026.Shared\obj\Debug\net8.0\STB2026.Shared.csproj.CoreCompileInputs.cache
+E:\Sorted\Programms\STB2026\STB2026.Shared\obj\Debug\net8.0\STB2026.Shared.sourcelink.json
+E:\Sorted\Programms\STB2026\STB2026.Shared\obj\Debug\net8.0\STB2026.Shared.dll
+E:\Sorted\Programms\STB2026\STB2026.Shared\obj\Debug\net8.0\refint\STB2026.Shared.dll
+E:\Sorted\Programms\STB2026\STB2026.Shared\obj\Debug\net8.0\STB2026.Shared.pdb
+E:\Sorted\Programms\STB2026\STB2026.Shared\obj\Debug\net8.0\ref\STB2026.Shared.dll

@@ -6,12 +6,13 @@
     <PlatformTarget>x64</PlatformTarget>
     <UseWPF>true</UseWPF>
 
-    <!-- Сборка сразу в C:\STB2026\ — никакого ручного копирования -->
+    <!-- Сборка напрямую в C:\STB2026\ -->
     <OutputPath>C:\STB2026\</OutputPath>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
     <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
   </PropertyGroup>
 
+  <!-- Revit API -->
   <ItemGroup>
     <Reference Include="RevitAPI">
       <HintPath>C:\Program Files\Autodesk\Revit 2025\RevitAPI.dll</HintPath>
@@ -23,27 +24,24 @@
     </Reference>
   </ItemGroup>
 
+  <!-- NuGet -->
   <ItemGroup>
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
     <PackageReference Include="System.IO.Pipes.AccessControl" Version="5.0.0" />
   </ItemGroup>
 
+  <!-- Shared project -->
   <ItemGroup>
     <ProjectReference Include="..\STB2026.Shared\STB2026.Shared.csproj" />
   </ItemGroup>
 
-  <!-- .addin файл — включаем в проект как Content, копируется при сборке -->
-  <ItemGroup>
-    <None Include="..\config\STB2026.Bridge.addin" Link="STB2026.Bridge.addin" />
-  </ItemGroup>
-
-  <!-- После сборки: копируем .addin в папку Revit Addins -->
+  <!-- Post-build: копируем .addin манифест в Revit -->
   <Target Name="CopyAddinManifest" AfterTargets="Build">
     <Copy
       SourceFiles="..\config\STB2026.Bridge.addin"
       DestinationFolder="$(APPDATA)\Autodesk\Revit\Addins\2025"
       SkipUnchangedFiles="true" />
     <Message Importance="High"
-      Text="[STB2026] .addin скопирован → $(APPDATA)\Autodesk\Revit\Addins\2025\" />
+      Text="[STB2026] .addin → %APPDATA%\Autodesk\Revit\Addins\2025\" />
   </Target>
 </Project>

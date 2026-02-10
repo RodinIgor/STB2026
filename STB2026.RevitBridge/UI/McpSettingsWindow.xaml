@@ -10,7 +10,7 @@
         FontSize="13">
 
     <Window.Resources>
-        <!-- Стиль Toggle Switch (аналог Nonica) -->
+        <!-- Toggle Switch стиль -->
         <Style x:Key="ToggleSwitch" TargetType="ToggleButton">
             <Setter Property="Template">
                 <Setter.Value>
@@ -56,12 +56,11 @@
 
     <Grid Margin="16">
         <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/>     <!-- Заголовок -->
-            <RowDefinition Height="Auto"/>     <!-- Подзаголовок -->
-            <RowDefinition Height="Auto"/>     <!-- Табы Auto/Manual -->
-            <RowDefinition Height="*"/>        <!-- Контент таба -->
-            <RowDefinition Height="Auto"/>     <!-- Тоглы -->
-            <RowDefinition Height="Auto"/>     <!-- Кнопки -->
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
         <!-- Заголовок -->
@@ -70,10 +69,9 @@
                    Foreground="#666" Margin="0,2,0,8"/>
 
         <!-- Табы Auto / Manual -->
-        <TabControl x:Name="tabMode" Grid.Row="2" Grid.RowSpan="1" Height="Auto"
-                    Margin="0,4,0,8" Background="White" BorderThickness="0">
+        <TabControl x:Name="tabMode" Grid.Row="2" Background="White" BorderThickness="0" Margin="0,4,0,8">
 
-            <!-- ═══ TAB: Auto ═══ -->
+            <!-- TAB: Auto -->
             <TabItem Header="     Auto     " FontSize="14" FontWeight="SemiBold">
                 <StackPanel Margin="4,12,4,0">
                     <!-- Claude Desktop -->
@@ -81,22 +79,20 @@
                         <TextBlock x:Name="txtClaudeIcon" Style="{StaticResource StatusFail}" Text="✗ " Width="22"/>
                         <TextBlock x:Name="txtClaudeStatus" Text="Claude Desktop App не обнаружен."
                                    VerticalAlignment="Center"/>
-                        <Button x:Name="btnSetupClaude" Content="Подключить" Margin="12,0,0,0"
-                                Padding="10,2" FontSize="11" Visibility="Collapsed"
-                                Click="BtnSetupClaude_Click"
-                                Background="#5B5FC7" Foreground="White" BorderThickness="0"/>
                     </StackPanel>
+                    <Button x:Name="btnSetupClaude" Content="  Подключить Claude  " Padding="8,4"
+                            Margin="22,0,0,10" HorizontalAlignment="Left"
+                            Click="BtnSetupClaude_Click" Visibility="Collapsed"/>
 
                     <!-- Cursor -->
                     <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
                         <TextBlock x:Name="txtCursorIcon" Style="{StaticResource StatusFail}" Text="✗ " Width="22"/>
                         <TextBlock x:Name="txtCursorStatus" Text="Cursor не обнаружен."
                                    VerticalAlignment="Center"/>
-                        <Button x:Name="btnSetupCursor" Content="Подключить" Margin="12,0,0,0"
-                                Padding="10,2" FontSize="11" Visibility="Collapsed"
-                                Click="BtnSetupCursor_Click"
-                                Background="#5B5FC7" Foreground="White" BorderThickness="0"/>
                     </StackPanel>
+                    <Button x:Name="btnSetupCursor" Content="  Подключить Cursor  " Padding="8,4"
+                            Margin="22,0,0,10" HorizontalAlignment="Left"
+                            Click="BtnSetupCursor_Click" Visibility="Collapsed"/>
 
                     <!-- Claude Code -->
                     <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
@@ -106,86 +102,58 @@
                     </StackPanel>
 
                     <!-- Pipe статус -->
-                    <Border Background="#F5F5F5" CornerRadius="4" Padding="8" Margin="0,10,0,0">
+                    <Border BorderBrush="#E0E0E0" BorderThickness="0,1,0,0" Margin="0,8,0,0" Padding="0,8,0,0">
                         <StackPanel Orientation="Horizontal">
-                            <TextBlock x:Name="txtPipeIcon" Text="⚡" FontSize="14" Margin="0,0,6,0"/>
-                            <TextBlock x:Name="txtPipeStatus" Text="Named Pipe: ожидание подключения..."
-                                       Foreground="#666"/>
+                            <TextBlock x:Name="txtPipeIcon" Text="⏳" FontSize="14" Width="22"/>
+                            <TextBlock x:Name="txtPipeStatus" Text="Named Pipe: ожидание запуска..."
+                                       VerticalAlignment="Center"/>
                         </StackPanel>
                     </Border>
 
-                    <!-- Важное уведомление -->
-                    <Border Background="#FFF3E0" CornerRadius="4" Padding="8" Margin="0,10,0,0"
-                            x:Name="pnlRestart" Visibility="Collapsed">
-                        <TextBlock TextWrapping="Wrap" Foreground="#E65100">
-                            <Run FontWeight="Bold">Important →</Run>
-                            <Run>Перезапустите AI Desktop App (иконка в трее, рядом с часами Windows).</Run>
-                        </TextBlock>
+                    <!-- Restart banner -->
+                    <Border x:Name="pnlRestart" Background="#FFF3E0" CornerRadius="4"
+                            Padding="10,6" Margin="0,10,0,0" Visibility="Collapsed">
+                        <TextBlock Text="⚠ Перезапустите AI-приложение для применения настроек."
+                                   Foreground="#E65100" TextWrapping="Wrap"/>
                     </Border>
                 </StackPanel>
             </TabItem>
 
-            <!-- ═══ TAB: Manual ═══ -->
-            <TabItem Header="    Manual    " FontSize="14" FontWeight="SemiBold">
+            <!-- TAB: Manual -->
+            <TabItem Header="     Manual     " FontSize="14" FontWeight="SemiBold">
                 <StackPanel Margin="4,12,4,0">
-                    <TextBlock TextWrapping="Wrap" Margin="0,0,0,8" Foreground="#666">
-                        Copy+Paste in claude_desktop_config.json or mcp.json, and restart AI.
-                    </TextBlock>
+                    <TextBlock Text="Путь к конфигу Claude:" Margin="0,0,0,4"/>
+                    <TextBox x:Name="txtConfigPath" IsReadOnly="True" Background="#F5F5F5"
+                             Padding="4" Margin="0,0,0,10"/>
 
-                    <Grid>
-                        <TextBox x:Name="txtManualJson" IsReadOnly="True"
-                                 FontFamily="Consolas" FontSize="11"
-                                 Background="#F8F8F8" BorderBrush="#DDD"
-                                 Padding="8" TextWrapping="Wrap"
-                                 Height="130" VerticalScrollBarVisibility="Auto"/>
-                        <Button Content="📋 Copy" HorizontalAlignment="Right" VerticalAlignment="Top"
-                                Margin="0,4,4,0" Padding="8,4"
-                                Click="BtnCopyJson_Click"
-                                Background="#EEE" BorderThickness="1" BorderBrush="#CCC"/>
-                    </Grid>
+                    <TextBlock Text="JSON для claude_desktop_config.json:" Margin="0,0,0,4"/>
+                    <TextBox x:Name="txtManualJson" IsReadOnly="True" Background="#F5F5F5"
+                             Height="120" AcceptsReturn="True" TextWrapping="Wrap"
+                             VerticalScrollBarVisibility="Auto" Padding="4" FontFamily="Consolas" FontSize="11"/>
 
-                    <TextBlock Margin="0,8,0,0" Foreground="#999" FontSize="11">
-                        <Run>Путь к конфигу Claude Desktop:</Run>
-                        <LineBreak/>
-                        <Run x:Name="txtConfigPath" Text="%APPDATA%\Claude\claude_desktop_config.json"/>
-                    </TextBlock>
+                    <Button Content="  📋 Copy JSON  " Padding="8,4"
+                            Margin="0,8,0,0" HorizontalAlignment="Left"
+                            Click="BtnCopyJson_Click"/>
                 </StackPanel>
             </TabItem>
         </TabControl>
 
-        <!-- Тоглы (как у Nonica) -->
-        <StackPanel Grid.Row="4" Margin="0,8,0,8">
-            <Separator Margin="0,0,0,8"/>
-
+        <!-- Тоглы -->
+        <StackPanel Grid.Row="3" Margin="0,4,0,8">
             <ToggleButton x:Name="tglConnection" Style="{StaticResource ToggleSwitch}"
-                          IsChecked="True" Margin="0,0,0,8"
-                          Content="Enable Connection Revit with A.I. Desktop Apps."
+                          Content="MCP Connection" Margin="0,0,0,6"
                           Checked="TglConnection_Changed" Unchecked="TglConnection_Changed"/>
-
             <ToggleButton x:Name="tglEditTools" Style="{StaticResource ToggleSwitch}"
-                          IsChecked="True" Margin="0,0,0,4"
-                          Content="Enable A.I. Tools to Edit existing elements in Revit."
+                          Content="Allow Edit Tools (modify_model, create_mep)"
                           Checked="TglEditTools_Changed" Unchecked="TglEditTools_Changed"/>
         </StackPanel>
 
-        <!-- Кнопки -->
-        <Grid Grid.Row="5">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="Auto"/>
-                <ColumnDefinition Width="*"/>
-            </Grid.ColumnDefinitions>
-
-            <Button Grid.Column="0" Content="  Close  " Padding="16,6"
-                    Click="BtnClose_Click"
-                    Background="White" BorderBrush="#CCC"/>
-
-            <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right">
-                <TextBlock Text="ℹ" Foreground="#5B5FC7" FontSize="14" Margin="0,0,4,0"
-                           VerticalAlignment="Center"/>
-                <TextBlock Text="Important: Restart AI Desktop App (corner)."
-                           Foreground="#5B5FC7" FontWeight="SemiBold" FontSize="11"
-                           VerticalAlignment="Center"/>
-            </StackPanel>
-        </Grid>
+        <!-- Кнопка закрыть -->
+        <StackPanel Grid.Row="4" Orientation="Horizontal" HorizontalAlignment="Right">
+            <TextBlock Text="STB2026 MCP Bridge" Foreground="#999" VerticalAlignment="Center" Margin="0,0,12,0"/>
+            <Button Content="  Закрыть  " Padding="12,4" Click="BtnClose_Click"
+                    Foreground="#5B5FC7" FontWeight="SemiBold" FontSize="11"
+                    VerticalAlignment="Center"/>
+        </StackPanel>
     </Grid>
 </Window>
